@@ -138,6 +138,8 @@ $('#daform').validate({{}});
         $(parentElement).attr('data-al-split-date', val);
       }};  // Ends updateDate()
       
+      // TODO: Make an outer function that just takes the parent
+      // element and returns the date parts.
       function getDatePartsFromInputs() {{
         return {{
           month: $(monthElement).val(),
@@ -166,22 +168,41 @@ $('#daform').validate({{}});
       // `depends`: https://stackoverflow.com/a/13626251/14144258 and
       // https://jqueryvalidation.org/validate/
       $('.' + dateElement.id).each(function() {{
-        $(this).rules( 'add', {{
+        let elem = this;
+        $(elem).rules( 'add', {{
           almin: {{
             depends: function(element) {{
               return $($(element).closest('.al-split-date-parent')[0]).attr('data-almin') !== undefined;
             }}
-          }},
+          }},  // Do I even need to do `depends` if I'm doing it inside this loop?
           almax: {{
             depends: function(element) {{
               return $($(element).closest('.al-split-date-parent')[0]).attr('data-almax') !== undefined;
             }}
           }},
-          messages: {{
-            almin: $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No",
-            almax: $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now",
-          }}
+          //messages: {{
+          //  almin: $($(elem).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No",
+          //  almax: $($(elem).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now",
+          //}},
         }});  // ends add rules
+        
+        // Avoid later elements overwriting messages of earlier elements by
+        // adding messages dynamically
+        // https://stackoverflow.com/a/20928765/14144258
+        $(this).on('change', function () {{
+          var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No";
+          var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now";
+          
+          // dynamically change the message
+          $(this).rules('add', {{
+            messages: {{
+              almin: min_message,
+              almax: max_message,
+            }}
+          }});
+          // trigger immediate validation to update message
+          $(this).valid();
+        }});  // ends on change
       }});  // ends for all 3 part dates
       
     }});  // ends for each input
@@ -189,26 +210,19 @@ $('#daform').validate({{}});
 // No jQuery validation for original field, since it doesn't work on hidden elements
 
 $.validator.addMethod('almin', function(value, element, params) {{
-  //console.log('blah');
-  console.log(`element`, element);
   var parent = $(element).closest('.al-split-date-parent');
-  console.log( `parent`, parent );
   var date_min = new Date($(parent).attr('data-almin'));
-  console.log('date_min', date_min);
-  //var date_val = new Date($(element).attr('data-al-split-date'));
   var date_val = new Date($(parent).attr('data-al-split-date'));
-  console.log('date_val', date_val);
   var under_min = date_val < date_min;
-  console.log('under_min', under_min);
-  return !under_min;
+  return date_val >= date_min;
 }});
 
 $.validator.addMethod('almax', function(value, element, params) {{
   var parent = $(element).closest('.al-split-date-parent');
-  var date_min = new Date($(parent).attr('data-almax'));
+  var date_max = new Date($(parent).attr('data-almax'));
   var date_val = new Date($(parent).attr('data-al-split-date'));
-  var over_max = date_val > date_min;
-  return !over_max;
+  var over_max = date_val > date_max;
+  return date_val <= date_max;
 }});
 
 }} catch (error) {{
