@@ -45,7 +45,7 @@ $('#daform').validate({{}});
       var monthParent = $('<div class="col">');
       var monthLabel = $('<label style="text-align:center">{month}</label>');
       monthLabel.attr( 'for', monthId );
-      var monthElement = $('<select class="form-select al-split-date ' + dateElement.id + '" style="width:7.5em">');
+      var monthElement = $('<select class="form-select month al-split-date ' + dateElement.id + '" style="width:7.5em">');
       monthElement.attr( 'id', monthId );
       monthElement.attr( 'required', required );
       monthElement.prop( 'required', required );
@@ -55,7 +55,7 @@ $('#daform').validate({{}});
       var dayLabel = $('<label style="text-align:center">{day}</label>');
       dayLabel.attr( 'for', dayId );
       // Reconsider type `number`
-      var dayElement = $('<input class="form-control al-split-date ' + dateElement.id + '" type="number" min="1" max="31">' );
+      var dayElement = $('<input class="form-control day al-split-date ' + dateElement.id + '" type="number" min="1" max="31">' );
       dayElement.attr( 'id', dayId );
       dayElement.attr( 'required', required );
       dayElement.prop( 'required', required );
@@ -66,7 +66,7 @@ $('#daform').validate({{}});
       yearLabel.attr( 'for', yearId );
       //Do not restrict year input range for now.
       // Reconsider type `number`
-      var yearElement = $('<input class="form-control al-split-date ' + dateElement.id + '" type="number">');
+      var yearElement = $('<input class="form-control year al-split-date ' + dateElement.id + '" type="number">');
       yearElement.attr( 'id', yearId );
       yearElement.attr( 'required', required );
       yearElement.prop( 'required', required );
@@ -125,28 +125,7 @@ $('#daform').validate({{}});
         yearElement.val( dateParts[ 2 ]);
       }}
       
-      // Update value of original input when changes values.
-      function updateDate() {{
-        var date = getDatePartsFromInputs();
-        var val = date.month + '/' + date.day + '/' + date.year;
-        if ( val === '//' ) {{
-          val = '';
-        }}
-        $(dateElement).val( val );
-        
-        // Prep for validation check
-        $(parentElement).attr('data-al-split-date', val);
-      }};  // Ends updateDate()
-      
-      // TODO: Make an outer function that just takes the parent
-      // element and returns the date parts.
-      function getDatePartsFromInputs() {{
-        return {{
-          month: $(monthElement).val(),
-          day: $(dayElement).val(),
-          year: $(yearElement).val(),
-        }};
-      }};
+      // -- Add elements to DOM --
       
       $(dateElement).before(parentElement); 
       $(monthParent).append(monthLabel);
@@ -159,11 +138,25 @@ $('#daform').validate({{}});
       $(yearParent).append(yearElement);
       $(parentElement).append(yearParent);
       
+      // -- Update on 'change' event --
+      
       // Updates will be triggered when the user leave an input field
       yearElement.on('change', updateDate);
       monthElement.on('change', updateDate);
       dayElement.on('change', updateDate);
       
+      // Update value of original input when values change.
+      function updateDate() {{
+        var data = get_date_data(parentElement);
+        var date_str = data.year + '-' + data.month + '-' + data.day;
+        var val = data.month + '/' + data.day + '/' + data.year;
+        if ( val === '//' ) {{
+          val = '';
+        }}
+        $(dateElement).val( val );
+      }};  // Ends updateDate()
+      
+      // -- Validation for these elements --
       
       // `depends`: https://stackoverflow.com/a/13626251/14144258 and
       // https://jqueryvalidation.org/validate/
@@ -180,20 +173,14 @@ $('#daform').validate({{}});
               return $($(element).closest('.al-split-date-parent')[0]).attr('data-almax') !== undefined;
             }}
           }},
-          //messages: {{
-          //  almin: $($(elem).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No",
-          //  almax: $($(elem).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now",
-          //}},
         }});  // ends add rules
         
         // Avoid later elements overwriting messages of earlier elements by
-        // adding messages dynamically
-        // https://stackoverflow.com/a/20928765/14144258
+        // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
         $(this).on('change', function () {{
           var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No";
           var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now";
-          
-          // dynamically change the message
+          // dynamically set the message
           $(this).rules('add', {{
             messages: {{
               almin: min_message,
@@ -210,20 +197,47 @@ $('#daform').validate({{}});
 // No jQuery validation for original field, since it doesn't work on hidden elements
 
 $.validator.addMethod('almin', function(value, element, params) {{
-  var parent = $(element).closest('.al-split-date-parent');
-  var date_min = new Date($(parent).attr('data-almin'));
-  var date_val = new Date($(parent).attr('data-al-split-date'));
-  var under_min = date_val < date_min;
+  var data = get_date_data(element);
+  if (data.year == '' || data.month == '' || data.day === '') {{
+    return true
+  }}
+  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+  var $parent = $(element).closest('.al-split-date-parent');
+  var date_min = new Date($parent.attr('data-almin'));
   return date_val >= date_min;
 }});
 
 $.validator.addMethod('almax', function(value, element, params) {{
-  var parent = $(element).closest('.al-split-date-parent');
-  var date_max = new Date($(parent).attr('data-almax'));
-  var date_val = new Date($(parent).attr('data-al-split-date'));
-  var over_max = date_val > date_max;
+  var data = get_date_data(element);
+  if (data.year == '' || data.month == '' || data.day === '') {{
+    return true
+  }}
+  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+  var $parent = $(element).closest('.al-split-date-parent');
+  var date_max = new Date($parent.attr('data-almax'));
   return date_val <= date_max;
 }});
+
+function get_date_data (element) {{
+  /**
+  * Given an element that holds a part of the date information,
+  * return the full date data as an object.
+  * 
+  * @returns {{year: str, month: str, day: str}}
+  */
+  // `.closest()` will get the element itself if appropriate
+  var $parent = $(element).closest('.al-split-date-parent');
+  var year_elem = $parent.find('.year')[0];
+  var month_elem = $parent.find('.month')[0];
+  var day_elem = $parent.find('.day')[0];
+  var data = {{
+    year: $(year_elem).val(),
+    month: $(month_elem).val(),
+    day: $(day_elem).val(),
+  }};
+  return data;
+
+}};  // Ends get_date_data()
 
 }} catch (error) {{
   console.error(error);
