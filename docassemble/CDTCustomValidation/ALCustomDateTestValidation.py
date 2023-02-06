@@ -13,10 +13,11 @@ import re
 js_text = """\
 try {{
 
-// Custom validation
-// We can't use `$("#myform").validate({{rules:{{...}} }}) because da is already
-// using the elment `name` attribute.
-$('#daform').validate({{}});
+$(document).on('daPageLoad', function(){{
+  // Custom validation
+  // We can't use `$("#myform").validate({{rules:{{...}} }}) because da is already
+  // using the elment `name` attribute.
+  $('#daform').validate({{}});
 
   //this is an adaptation of Jonathan Pyle's datereplace.js
     $('input[type="ALThreePartsDateTestValidation"]').each(function(){{
@@ -238,6 +239,8 @@ function get_date_data (element) {{
   return data;
 
 }};  // Ends get_date_data()
+
+}});  // ends on da page load
 
 }} catch (error) {{
   console.error(error);
