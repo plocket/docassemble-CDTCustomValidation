@@ -178,7 +178,7 @@ $(document).on('daPageLoad', function(){{
         
         // Avoid later elements overwriting messages of earlier elements by
         // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
-        $(this).on('change', function () {{
+        $(this).one('change', function () {{
           var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No";
           var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now";
           // dynamically set the message
