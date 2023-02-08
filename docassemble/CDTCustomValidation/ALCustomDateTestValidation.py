@@ -297,12 +297,12 @@ $(document).on('daPageLoad', function(){{
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
     var $dates_parent = $(element).closest('.al-split-date-parent');
     var max_attr = $dates_parent.attr('data-almax')
+    var date_max = new Date(max_attr);
     var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
     if ( !date_max && $birthdate[0]) {{
       date_max = Date.now()
     }}
-    var date_max = new Date(date_max);
-    console.log('date_max', date_max);
+    console.log('max_attr', max_attr, 'date_max', date_max);
     // Note that a year input of "1" counts as a date of 2001
     return date_val <= date_max;
   }});
