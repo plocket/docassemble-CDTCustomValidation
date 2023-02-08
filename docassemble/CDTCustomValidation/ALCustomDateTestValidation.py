@@ -11,16 +11,18 @@ from typing import Optional
 import re
 
 js_text = """\
+// da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
 
 $(document).on('daPageLoad', function(){{
   // Custom validation
-  // We can't use `$("#myform").validate({{rules:{{...}} }}) because da is already
-  // using the elment `name` attribute.
+  // We can't use `$("#myform").validate({{rules:{{...}} }})
+  // etc. because it needs names and we don't have them here.
   $('#daform').validate({{}});
 
   //this is an adaptation of Jonathan Pyle's datereplace.js
     $('input[type="ALThreePartsDateTestValidation"]').each(function(){{
+      var date_type = 'ALThreePartsDateTestValidation';  // Will be replaced by python
       var dateElement = this;
       var required = $(dateElement).closest('.da-form-group').hasClass('darequired');
       $(dateElement).hide();
@@ -31,6 +33,13 @@ $(document).on('daPageLoad', function(){{
       var parentElement = $('<div class="form-row row al-split-date-parent">');
       var almin = $(dateElement).data('almin');
       var almax = $(dateElement).data('almax');
+      //var almax = null;
+      // How is this already detecting a maximum of today?
+      //// For birthdates, default max should be today
+      //if ( $($(parentElement).find('.daALBirthDateTestValidation')) ) {{
+      //  
+      //}}
+      
       var almin_message = $(dateElement).data('alminmessage');
       var almax_message = $(dateElement).data('almaxmessage');
       
@@ -39,6 +48,7 @@ $(document).on('daPageLoad', function(){{
       // https://stackoverflow.com/a/8708345/14144258
       $(parentElement).attr('data-almin', almin);
       $(parentElement).attr('data-almax', almax);
+      
       $(parentElement).attr('data-alminmessage', almin_message);
       $(parentElement).attr('data-almaxmessage', almax_message);
       
@@ -46,7 +56,7 @@ $(document).on('daPageLoad', function(){{
       var monthParent = $('<div class="col">');
       var monthLabel = $('<label style="text-align:center">{month}</label>');
       monthLabel.attr( 'for', monthId );
-      var monthElement = $('<select class="form-select month al-split-date ' + dateElement.id + '" style="width:7.5em">');
+      var monthElement = $('<select class="form-select al-split-date month ' + dateElement.id + '" style="width:7.5em">');
       monthElement.attr( 'id', monthId );
       monthElement.attr( 'required', required );
       monthElement.prop( 'required', required );
@@ -71,6 +81,9 @@ $(document).on('daPageLoad', function(){{
       yearElement.attr( 'id', yearId );
       yearElement.attr( 'required', required );
       yearElement.prop( 'required', required );
+      
+      // TODO: try removing this
+      var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al-split-date error"></div>');
         
       // If we're returning to a variable that has already been defined
       // prepare to use that variable's values
@@ -138,6 +151,8 @@ $(document).on('daPageLoad', function(){{
       $(yearParent).append(yearLabel);
       $(yearParent).append(yearElement);
       $(parentElement).append(yearParent);
+      // TODO: try removing this
+      $(parentElement).append(errorElement);
       
       // -- Update on 'change' event --
       
@@ -159,6 +174,9 @@ $(document).on('daPageLoad', function(){{
       
       // -- Validation for these elements --
       
+      // TODO: I think it might be possible to use `groups`, but
+      // I'm not sure how. This plugin is poorly documented.
+      
       // `depends`: https://stackoverflow.com/a/13626251/14144258 and
       // https://jqueryvalidation.org/validate/
       $('.' + dateElement.id).each(function() {{
@@ -171,6 +189,20 @@ $(document).on('daPageLoad', function(){{
           }},  // Do I even need to do `depends` if I'm doing it inside this loop?
           almax: {{
             depends: function(element) {{
+              // Birthdates always have a max value
+              //var $dates_parent = $(element).closest('.al-split-date-parent');
+              //var max_attr = $dates_parent.attr('data-almax')
+              //var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
+              if ( date_type === 'ALBirthDateTestValidation' ) {{
+                // TODO next: even 3-part is always birthdate. Need different class for each?
+                // Something is going on because this whole thing is run twice, once for each field.
+                // because of the shared class. That said, are we going to have problems
+                // when there are e.g. multiple 3-part dates on the page?
+                // Use id of original class as class to loop through?
+                console.log('is birthdate');
+                return true;
+              }}
+              // Otherwise, check the element itself
               return $($(element).closest('.al-split-date-parent')[0]).attr('data-almax') !== undefined;
             }}
           }},
@@ -178,72 +210,136 @@ $(document).on('daPageLoad', function(){{
         
         // Avoid later elements overwriting messages of earlier elements by
         // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
+        // `.one()` will make sure this is only set once
         $(this).one('change', function () {{
-          var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || "No";
-          var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || "Not now";
-          // dynamically set the message
+        
+          // Add this error validation to the existing error validation
+          var originalErrorPlacement = $('#daform').validate().settings.errorPlacement
+          var errorPlacement = function(error, element) {{
+            var $parent = $(element).closest('.al-split-date-parent');
+            
+            // If this isn't an AL date, use the original behavior
+            if ( !$parent[0] ) {{
+              originalErrorPlacement(error, element);
+            }}
+            
+            // Otherwise, use our custom error labeling
+            $( $parent.find('span.invalid-feedback') ).remove();
+            $(error).appendTo( $parent );
+          }};
+          // Override the previous errorPlacement
+          var validator = $("#daform").data('validator');
+          validator.settings.errorPlacement = errorPlacement;
+          
+          var default_min_message = 'This date is too early';
+          var default_max_message = 'This date is too late';
+          //// Birthdays have a different default max message
+          //var $original = $($parent.find('.daALBirthDateTestValidation'));
+          //if ( $($parent.find('.daALBirthDateTestValidation'))[0] ) {{
+          //  default_max_message = 'The birthdate must be in the past';
+          //}}
+          
+          //var $dates_parent = $(element).closest('.al-split-date-parent');
+          //var max_attr = $dates_parent.attr('data-almax')
+          //var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
+          
+          if ( date_type === 'ALBirthDateTestValidation' ) {{
+            default_max_message = 'The birthdate must be in the past';
+          }}
+          
+          var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || default_min_message;
+          var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || default_max_message;
+          
+          // Dynamically set the message
+          // TODO: Do we need to ensure other messages aren't errased?
+          // So far we've seen other messages still show up just fine.
           $(this).rules('add', {{
             messages: {{
               almin: min_message,
               almax: max_message,
-            }}
+            }},
           }});
           // trigger immediate validation to update message
           $(this).valid();
         }});  // ends on change
       }});  // ends for all 3 part dates
       
+      // TODO: Maybe add a message for an incomplete date when the parent loses focus
+      
     }});  // ends for each input
   
-// No jQuery validation for original field, since it doesn't work on hidden elements
+  // No jQuery validation for original field, since it doesn't work on hidden
+  // elements last time we tried
 
-$.validator.addMethod('almin', function(value, element, params) {{
-  var data = get_date_data(element);
-  if (data.year == '' || data.month == '' || data.day === '') {{
-    return true
-  }}
-  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
-  var $parent = $(element).closest('.al-split-date-parent');
-  var date_min = new Date($parent.attr('data-almin'));
-  return date_val >= date_min;
-}});
+  $.validator.addMethod('almin', function(value, element, params) {{
+    // TODO: special invalidation for invalid dates
+    
+    var data = get_date_data(element);
+    // Don't show an error if the date is only partly filled
+    if (data.year == '' || data.month == '' || data.day === '') {{
+      // TODO: Add a message for an incomplete date? Elsewhere.
+      return true;
+    }}
+    var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+    var $parent = $(element).closest('.al-split-date-parent');
+    var date_min = new Date($parent.attr('data-almin'));
+    return date_val >= date_min;
+  }});
 
-$.validator.addMethod('almax', function(value, element, params) {{
-  var data = get_date_data(element);
-  if (data.year == '' || data.month == '' || data.day === '') {{
-    return true
-  }}
-  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
-  var $parent = $(element).closest('.al-split-date-parent');
-  var date_max = new Date($parent.attr('data-almax'));
-  return date_val <= date_max;
-}});
+  $.validator.addMethod('almax', function(value, element, params) {{
+    // TODO: special invalidation for invalid dates
+    
+    var data = get_date_data(element);
+    // Don't show an error if the date is only partly filled
+    if (data.year == '' || data.month == '' || data.day === '') {{
+      return true;
+    }}
+    var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+    var $dates_parent = $(element).closest('.al-split-date-parent');
+    var max_attr = $dates_parent.attr('data-almax')
+    var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
+    if ( !date_max && $birthdate[0]) {{
+      date_max = Date.now()
+    }}
+    var date_max = new Date(date_max);
+    console.log('date_max', date_max);
+    // Note that a year input of "1" counts as a date of 2001
+    return date_val <= date_max;
+  }});
 
-function get_date_data (element) {{
-  /**
-  * Given an element that holds a part of the date information,
-  * return the full date data as an object.
-  * 
-  * @returns {{year: str, month: str, day: str}}
-  */
-  // `.closest()` will get the element itself if appropriate
-  var $parent = $(element).closest('.al-split-date-parent');
-  var year_elem = $parent.find('.year')[0];
-  var month_elem = $parent.find('.month')[0];
-  var day_elem = $parent.find('.day')[0];
-  var data = {{
-    year: $(year_elem).val(),
-    month: $(month_elem).val(),
-    day: $(day_elem).val(),
-  }};
-  return data;
+  function get_date_data (element) {{
+    /**
+    * Given an element that holds a part of the date information,
+    * return the full date data as an object.
+    * 
+    * @returns {{year: str, month: str, day: str}}
+    */
+    // `.closest()` will get the element itself if appropriate
+    var $parent = $(element).closest('.al-split-date-parent');
+    var year_elem = $parent.find('.year')[0];
+    var month_elem = $parent.find('.month')[0];
+    var day_elem = $parent.find('.day')[0];
+    var date_data = {{
+      year: $(year_elem).val(),
+      month: $(month_elem).val(),
+      day: $(day_elem).val(),
+    }};
+    console.log( date_data );
+    return date_data;
 
-}};  // Ends get_date_data()
+  }};  // Ends get_date_data()
+  
+  function get_$parent( element ) {{
+  /** Return the element we created to surround our date elements.
+  *   Easier to maintain all in one place. */
+    // `.closest()` will get the element itself if appropriate
+    return $(element).closest('.al-split-date-parent');
+  }};  // Ends get_$parent()
 
 }});  // ends on da page load
 
 }} catch (error) {{
-  console.error(error);
+  console.error('Error in AL dates CusotmDataTypes', error);
 }}
 """
 
