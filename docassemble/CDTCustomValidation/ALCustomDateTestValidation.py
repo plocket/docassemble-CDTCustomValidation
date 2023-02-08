@@ -190,7 +190,7 @@ $(document).on('daPageLoad', function(){{
           almax: {{
             depends: function(element) {{
               // Birthdates always have a max value
-              //var $dates_parent = $(element).closest('.al-split-date-parent');
+              //var $dates_parent = get_$parent(element);
               //var max_attr = $dates_parent.attr('data-almax')
               //var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
               if ( date_type === 'ALBirthDateTestValidation' ) {{
@@ -216,7 +216,7 @@ $(document).on('daPageLoad', function(){{
           // Add this error validation to the existing error validation
           var originalErrorPlacement = $('#daform').validate().settings.errorPlacement
           var errorPlacement = function(error, element) {{
-            var $parent = $(element).closest('.al-split-date-parent');
+            var $parent = get_$parent(element);
             
             // If this isn't an AL date, use the original behavior
             if ( !$parent[0] ) {{
@@ -239,7 +239,7 @@ $(document).on('daPageLoad', function(){{
           //  default_max_message = 'The birthdate must be in the past';
           //}}
           
-          //var $dates_parent = $(element).closest('.al-split-date-parent');
+          //var $dates_parent = get_$parent(element);
           //var max_attr = $dates_parent.attr('data-almax')
           //var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
           
@@ -247,8 +247,8 @@ $(document).on('daPageLoad', function(){{
             default_max_message = 'The birthdate must be in the past';
           }}
           
-          var min_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-alminmessage') || default_min_message;
-          var max_message = $($(this).closest('.al-split-date-parent')[0]).attr('data-almaxmessage') || default_max_message;
+          var min_message = get_$parent(this).attr('data-alminmessage') || default_min_message;
+          var max_message = get_$parent(this).attr('data-almaxmessage') || default_max_message;
           
           // Dynamically set the message
           // TODO: Do we need to ensure other messages aren't errased?
@@ -281,13 +281,22 @@ $(document).on('daPageLoad', function(){{
       return true;
     }}
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
-    var $parent = $(element).closest('.al-split-date-parent');
+    if ( isNaN( date_val ) ) {{
+      // We need to handle invalid date input elsewhere.
+      // No way to get right message in here.
+      return true;
+    }}
+    var $parent = get_$parent(element);
     var date_min = new Date($parent.attr('data-almin'));
+    console.log('data', data, 'date_val', date_val);
+    console.log( '$parent', $parent );
+    console.log('date_min', date_min);
     return date_val >= date_min;
   }});
 
   $.validator.addMethod('almax', function(value, element, params) {{
     // TODO: special invalidation for invalid dates
+    console.log('=== validating max ===');
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -295,12 +304,19 @@ $(document).on('daPageLoad', function(){{
       return true;
     }}
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
-    var $dates_parent = $(element).closest('.al-split-date-parent');
+    // TODO: Will not check for 2/31/nnnn, etc.
+    if ( isNaN( date_val ) ) {{
+      // We need to handle invalid date input elsewhere.
+      // No way to get right message in here.
+      return true;
+    }}
+    var $dates_parent = get_$parent(element);
     var max_attr = $dates_parent.attr('data-almax')
     var date_max = new Date(max_attr);
     var $birthdate = $dates_parent.parent().find('.daALBirthDateTestValidation');
-    if ( !date_max && $birthdate[0]) {{
-      date_max = Date.now()
+    console.log('$birthdate', $birthdate);
+    if ( isNaN(date_max) && $birthdate[0]) {{
+      date_max = new Date(Date.now())
     }}
     console.log('max_attr', max_attr, 'date_max', date_max);
     // Note that a year input of "1" counts as a date of 2001
@@ -315,21 +331,20 @@ $(document).on('daPageLoad', function(){{
     * @returns {{year: str, month: str, day: str}}
     */
     // `.closest()` will get the element itself if appropriate
-    var $parent = $(element).closest('.al-split-date-parent');
-    var year_elem = $parent.find('.year')[0];
-    var month_elem = $parent.find('.month')[0];
-    var day_elem = $parent.find('.day')[0];
+    var year_elem = get_$parent(element).find('.year')[0];
+    var month_elem = get_$parent(element).find('.month')[0];
+    var day_elem = get_$parent(element).find('.day')[0];
     var date_data = {{
       year: $(year_elem).val(),
       month: $(month_elem).val(),
       day: $(day_elem).val(),
     }};
-    console.log( date_data );
+    console.log( 'date_data in get_date_date()', date_data );
     return date_data;
 
   }};  // Ends get_date_data()
   
-  function get_$parent( element ) {{
+  function get_$parent(element) {{
   /** Return the element we created to surround our date elements.
   *   Easier to maintain all in one place. */
     // `.closest()` will get the element itself if appropriate
