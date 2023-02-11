@@ -11,8 +11,29 @@ from typing import Optional
 import re
 
 js_text = """\
+
+/* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
+*  missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
+*  information that cannot be correct (for example, the number ‘13’ in the month field)
+*  information that fails validation for another reason
+*     (note: maybe less than 4 digits in year, too)
+*/
+
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
+
+// https://design-system.service.gov.uk/components/date-input/#error-messages
+var priorites_date_part = {{
+  empty: 1,
+  out_of_range: 2,
+  invalid: 3,  // Maybe non-4-digit year
+}};
+
+var priorities_full_date = {{
+  // Multiple or non-determinate out of range, max, min
+  out_of_range: 1,
+  invalid: 2,
+}};
 
 $(document).on('daPageLoad', function(){{
   // Custom validation
@@ -43,6 +64,15 @@ $(document).on('daPageLoad', function(){{
       
       $(parentElement).attr('data-alminmessage', almin_message);
       $(parentElement).attr('data-almaxmessage', almax_message);
+      
+      // TODO: Set names of inputs to same as ids of inputs, then use
+      // the other things that go with it, like `for`. We might then
+      // be able to make a jQuery validation plugin `group`. Still not sure
+      // `group` is useful since we need to sometimes treat the fields
+      // individually. https://stackoverflow.com/a/14147170/14144258
+      // TODO: Check out `ignore: ''` https://stackoverflow.com/questions/13692061/using-the-jquery-validate-plugin-to-check-if-one-or-more-checkboxes-with-differ#comment18861816_13708252
+      // That might break docassemble things, though, if we can't make it specific
+      // to just these fields.
       
       var monthId = dateElement.id + '-month';
       var monthParent = $('<div class="col">');
@@ -205,12 +235,6 @@ $(document).on('daPageLoad', function(){{
         // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
         // `.one()` will make sure this is only set once
         $(this).one('change', function (event) {{
-            
-          /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
-          *  missing or incomplete information (when parent is no longer in focus, highlight fields missing info)
-          *  information that cannot be correct (for example, the number ‘13’ in the month field)
-          *  information that fails validation for another reason
-          */
         
           // Add this error validation to the existing error validation
           var originalErrorPlacement = $('#daform').validate().settings.errorPlacement;
@@ -309,7 +333,8 @@ $(document).on('daPageLoad', function(){{
     // TODO: special invalidation for invalid dates
     // TODO: add highlighting class to parent in here, since
     // min invalidates all. That way styling will be per invalidation
-    // type. Need to figure out how to prioritize.
+    // type. Still need to remove in `unhighlight`. Also still need
+    // to figure out how to prioritize types of validation.
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -326,9 +351,9 @@ $(document).on('daPageLoad', function(){{
     var $parent = get_$parent(element);
     // TODO: Catch invalid min dates? Useful for devs. Otherwise very hard to track down.
     var date_min = new Date($parent.attr('data-almin'));
-    console.log('data', data, 'date_val', date_val);
-    console.log( '$parent', $parent );
-    console.log('date_min', date_min);
+    // console.log('data', data, 'date_val', date_val);
+    // console.log( '$parent', $parent );
+    // console.log('date_min', date_min);
     return date_val >= date_min;
   }});
 
@@ -336,7 +361,7 @@ $(document).on('daPageLoad', function(){{
     // TODO: special invalidation for invalid dates
     // TODO: add highlighting class to parent in here, since
     // max invalidates all
-    console.log('=== validating max ===');
+    // console.log('=== validating max ===');
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -357,7 +382,7 @@ $(document).on('daPageLoad', function(){{
     if ( isNaN(date_max) && is_birthdate(element)) {{
       date_max = new Date(Date.now())
     }}
-    console.log('max_attr', max_attr, 'date_max', date_max);
+    // console.log('max_attr', max_attr, 'date_max', date_max);
     // Note that a year input of "1" counts as a date of 2001
     return date_val <= date_max;
   }});
@@ -377,7 +402,7 @@ $(document).on('daPageLoad', function(){{
       month: $(month_elem).val(),
       day: $(day_elem).val(),
     }};
-    console.log( 'date_data in get_date_date()', date_data );
+    // console.log( 'date_data in get_date_date()', date_data );
     return date_data;
 
   }};  // Ends get_date_data()
