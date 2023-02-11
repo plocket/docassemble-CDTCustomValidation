@@ -307,6 +307,9 @@ $(document).on('daPageLoad', function(){{
 
   $.validator.addMethod('almin', function(value, element, params) {{
     // TODO: special invalidation for invalid dates
+    // TODO: add highlighting class to parent in here, since
+    // min invalidates all. That way styling will be per invalidation
+    // type. Need to figure out how to prioritize.
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -331,6 +334,8 @@ $(document).on('daPageLoad', function(){{
 
   $.validator.addMethod('almax', function(value, element, params) {{
     // TODO: special invalidation for invalid dates
+    // TODO: add highlighting class to parent in here, since
+    // max invalidates all
     console.log('=== validating max ===');
     
     var data = get_date_data(element);
