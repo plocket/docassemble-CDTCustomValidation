@@ -3,6 +3,14 @@ mandatory: True
 code: |
   "blah"
 ---
+features:
+  css:
+    - al_dates.css
+# javascript:
+#   - the_file.js
+---
+# Maybe just add a js script that you import into the interview
+# to do the validation
 mandatory: True
 question: A custom data type
 fields:

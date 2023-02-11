@@ -58,6 +58,9 @@ $(document).on('daPageLoad', function(){{
       var dayLabel = $('<label style="text-align:center">{day}</label>');
       dayLabel.attr( 'for', dayId );
       // Reconsider type `number`
+      // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
+      // `inputmode` ("numeric") not fully supported yet (02/09/2023)
+      // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
       var dayElement = $('<input class="form-control day al-split-date ' + dateElement.id + '" type="number" min="1" max="31">' );
       dayElement.attr( 'id', dayId );
       dayElement.attr( 'required', required );
@@ -69,6 +72,9 @@ $(document).on('daPageLoad', function(){{
       yearLabel.attr( 'for', yearId );
       //Do not restrict year input range for now.
       // Reconsider type `number`
+      // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
+      // `inputmode` ("numeric") not fully supported yet (02/09/2023)
+      // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
       var yearElement = $('<input class="form-control year al-split-date ' + dateElement.id + '" type="number">');
       yearElement.attr( 'id', yearId );
       yearElement.attr( 'required', required );
@@ -199,25 +205,75 @@ $(document).on('daPageLoad', function(){{
         // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
         // `.one()` will make sure this is only set once
         $(this).one('change', function (event) {{
+            
+          /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
+          *  missing or incomplete information (when parent is no longer in focus, highlight fields missing info)
+          *  information that cannot be correct (for example, the number ‘13’ in the month field)
+          *  information that fails validation for another reason
+          */
         
           // Add this error validation to the existing error validation
-          var originalErrorPlacement = $('#daform').validate().settings.errorPlacement
+          var originalErrorPlacement = $('#daform').validate().settings.errorPlacement;
           var errorPlacement = function(error, element) {{
+            // Finds an AL date parent
             var $parent = get_$parent(element);
             
             // If this isn't an AL date, use the original behavior
-            if ( !$parent[0] ) {{
+            if (!$parent[0]) {{
               originalErrorPlacement(error, element);
+              return;
             }}
             
             // Otherwise, use our custom error labeling
-            $( $parent.find('span.invalid-feedback') ).remove();
-            $(error).appendTo( $parent );
+            $($parent.find('span.invalid-feedback')).remove();
+            // For codepen practice:
+            // $($parent.find('label.error')).remove();
+            $(error).appendTo($parent);
+            // Add class 'is-invalid', set aria-invalid to true
+            // and aria-describedby to something like
+            // "dGVzdF8zX3BhcnQ-year-error dGVzdF8zX3BhcnQ-month-error dGVzdF8zX3BhcnQ-day-error"
+            // https://stackoverflow.com/a/53404898/14144258
+            // using the three elements' `id`s.
+            // TODO: In future, this should depend on what kind of invalidation
+            // it is. That info could be stored in a `data` attribute
+            
           }};
           // Override the previous errorPlacement
           var validator = $("#daform").data('validator');
           validator.settings.errorPlacement = errorPlacement;
           
+          
+          // -- Styling (see al_dates.css) --
+          
+          var originalHighlight = $('#daform').validate().settings.highlight;
+          var highlight = function(element, errorClass, validClass) {{
+            // Finds an AL date parent
+            var $al_parent = get_$parent(element);
+            // Highlight all of the children inputs
+            // TODO: Only do this on min/max/invalid date failures
+            $al_parent.addClass('invalid');
+            
+            originalHighlight(element, errorClass, validClass);
+          }};
+          // Override the previous highlight
+          var validator = $("#daform").data('validator');
+          validator.settings.highlight = highlight;
+          
+          var originalUnhighlight = $('#daform').validate().settings.unhighlight;
+          var unhighlight = function(element, errorClass, validClass) {{
+            // Finds an AL date parent
+            var $al_parent = get_$parent(element);
+            // Unhighlight all of the children inputs
+            // TODO: Only do this on min/max/invalid date failures
+            $al_parent.removeClass('invalid');
+            
+            originalUnhighlight(element, errorClass, validClass);
+          }};
+          // Override the previous highlight
+          var validator = $("#daform").data('validator');
+          validator.settings.unhighlight = unhighlight;
+          
+          // -- Messages --
           var default_min_message = 'This date is too early';
           var default_max_message = 'This date is too late';
           // Birthdays have a different default max message
@@ -337,7 +393,7 @@ $(document).on('daPageLoad', function(){{
 }});  // ends on da page load
 
 }} catch (error) {{
-  console.error('Error in AL dates CusotmDataTypes', error);
+  console.error('Error in AL date CusotmDataTypes', error);
 }}
 """
 
