@@ -18,6 +18,7 @@ js_text = """\
 *  information that cannot be correct (for example, the number ‘13’ in the month field)
 *  information that fails validation for another reason
 *     (note: maybe less than 4 digits in year, too)
+* Their "valid date" code: https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
 */
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
@@ -210,6 +211,7 @@ $(document).on('daPageLoad', function(){{
       $('.' + dateElement.id).each(function() {{
         let elem = this;
         $(elem).rules( 'add', {{
+          // TODO: Will these messages come through on their own? Doubt it.
           almin: {{
             depends: function(element) {{
               return get_$parent(element).attr('data-almin') !== undefined;
