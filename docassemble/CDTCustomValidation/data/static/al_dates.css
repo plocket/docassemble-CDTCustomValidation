@@ -1,39 +1,55 @@
+:root {
+  --al-bs-exclamation: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+}
+
+/* Javascript somewhere is setting an inline style. We could try
+to just neutralize it instead. It's just a different kind of war. */
+.al_split_date_parent:not(.al_invalid) .invalid-feedback,
+.al_split_date_parent:not(.al_invalid_child) .invalid-feedback {
+  /*display: none !important;*/
+}
+
 /* ====================== */
+/* == Invalid styles == */
 /* -- Invalid children elements identified by their parent -- */
 
-.al-split-date-parent.invalid .al-split-date {
+.al_split_date_parent.al_invalid .al_split_date,
+.al_split_date_parent .al_split_date.al_invalid {
   border: 1px solid var(--bs-danger);
   padding-right: calc(1.5em + 0.75rem);
   background-repeat: no-repeat;
   background-position: right calc(0.375em + 0.1875rem) center;
   background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+  background-image: var(--al-bs-exclamation);
 }
 
-.al-split-date-parent.invalid .al-split-date.form-control:focus,
-.al-split-date-parent.invalid .al-split-date.form-select:focus {
-  box-shadow: 0 0 0 0.25rem rgba(var(--bs-danger-rgb), 25%);
+.al_split_date_parent.al_invalid .al_split_date.form-control:focus,
+.al_split_date_parent.al_invalid .al_split_date.form-select:focus,
+.al_split_date_parent .al_split_date.form-control.al_invalid:focus,
+.al_split_date_parent .al_split_date.form-select.al_invalid:focus {
+  box-shadow: 0 0 0 0.25rem rgb(var(--bs-danger-rgb), 25%);
   padding-right: calc(1.5em + 0.75rem);
   background-repeat: no-repeat;
   background-position: right calc(0.375em + 0.1875rem) center;
   background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+  background-image: var(--al-bs-exclamation);
 }
 
 /* This is for when IE is completely unused or implements focus-within */
-.al-split-date-parent.invalid:focus-within .al-split-date {
-  box-shadow: 0 0 0 0.25rem rgb(220 53 69 / 25%);
+.al_split_date_parent.al_invalid:focus-within .al_split_date,
+.al_split_date_parent:focus-within .al_split_date.al_invalid {
+  box-shadow: 0 0 0 0.25rem rgb(var(--bs-danger-rgb), 25%);
   padding-right: calc(1.5em + 0.75rem);
   background-repeat: no-repeat;
   background-position: right calc(0.375em + 0.1875rem) center;
   background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+  background-image: var(--al-bs-exclamation);
 }
 
 /* ====================== */
+/* == Valid styles == */
 /* -- Children elements that think they're invalid, but really aren't anymore */
-/* Found this at some point, don't remember exact replication */
-
+/* Found these problems at some point, don't remember exact replication */
 
 /* TODO: exclamation marks are background images somehow:
 https://getbootstrap.com/docs/5.0/forms/validation/#custom-styles
@@ -41,33 +57,31 @@ Plus padding-right in the element itself. Use unset for image.
 0.75rem is the default padding for bootstrap usually?
 */
 
-.al-split-date-parent:not(.invalid) .form-control.is-invalid,
-.al-split-date-parent:not(.invalid) .was-validated .form-control:invalid,
-.al-split-date-parent:not(.invalid) .form-select.is-invalid,
-.al-split-date-parent:not(.invalid) .was-validated .form-select:invalid {
+/* TODO: What to do about IE <= 11? Won't work with `:not()`.
+or `var()`, even with `X-UA-Compatible`. da uses `var()` all
+the time. What's the deal? */
+
+.al_split_date_parent:not(.al_invalid) .form-control.is-invalid,
+.al_split_date_parent:not(.al_invalid) .was-validated .form-control:invalid,
+.al_split_date_parent:not(.al_invalid) .form-select.is-invalid,
+.al_split_date_parent:not(.al_invalid) .was-validated .form-select:invalid {
   border-color: var(--bs-gray-400);
   background-image: unset;
   padding-right: 0.75rem;
 }
 
-.al-split-date-parent:not(.invalid) .form-control.is-invalid:focus,
-.al-split-date-parent:not(.invalid) .was-validated .form-control:invalid:focus,
-.al-split-date-parent:not(.invalid) .form-select.is-invalid:focus,
-.al-split-date-parent:not(.invalid) .was-validated .form-select:invalid:focus {
+.al_split_date_parent:not(.al_invalid) .form-control.is-invalid:focus,
+.al_split_date_parent:not(.al_invalid) .was-validated .form-control:invalid:focus,
+.al_split_date_parent:not(.al_invalid) .form-select.is-invalid:focus,
+.al_split_date_parent:not(.al_invalid) .was-validated .form-select:invalid:focus {
   border-color: #86b7fe;
   background-image: unset;
   box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 25%);
 }
 
 /* This is for when IE is completely unused or implements focus-within */
-.al-split-date-parent:not(.invalid):focus-within .al-split-date.is-invalid:focus,
-.al-split-date-parent:not(.invalid):focus-within .was-validated .al-split-date:invalid:focus {
+.al_split_date_parent:not(.al_invalid):focus-within .al_split_date.is-invalid:focus,
+.al_split_date_parent:not(.al_invalid):focus-within .was-validated .al_split_date:invalid:focus {
   box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 25%);
   background-image: unset;
-}
-
-/* Javascript somewhere is setting an inline style. We could try
-to just neutralize it instead. It's just a different kind of war. */
-.al-split-date-parent:not(.invalid) .invalid-feedback {
-  display: none !important;
 }

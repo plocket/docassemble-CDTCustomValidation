@@ -11,6 +11,7 @@ from typing import Optional
 import re
 
 js_text = """\
+//this is an adaptation of Jonathan Pyle's datereplace.js
 
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
@@ -18,29 +19,28 @@ js_text = """\
 *  information that fails validation for another reason
 *     (note: maybe less than 4 digits in year, too)
 */
-
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
-
 // https://design-system.service.gov.uk/components/date-input/#error-messages
 var priorites_date_part = {{
   empty: 1,
   out_of_range: 2,
   invalid: 3,  // Maybe non-4-digit year
 }};
-
 var priorities_full_date = {{
   // Multiple or non-determinate out of range, max, min
   out_of_range: 1,
   invalid: 2,
 }};
-
+  
+  
 $(document).on('daPageLoad', function(){{
+  
+  
   // Custom validation
   // We can't use `$("#myform").validate({{rules:{{...}} }})
   // etc. because it needs names and we don't have them here.
   $('#daform').validate({{}});
-
   //this is an adaptation of Jonathan Pyle's datereplace.js
     $('input[type="ALThreePartsDateTestValidation"]').each(function(){{
       var dateElement = this;
@@ -50,7 +50,7 @@ $(document).on('daPageLoad', function(){{
       $(dateElement).attr('aria-hidden', 'true');
       
       //Construct the input components
-      var parentElement = $('<div class="form-row row al-split-date-parent">');
+      var parentElement = $('<div class="form-row row al_split_date_parent">');
       var almin = $(dateElement).data('almin');
       var almax = $(dateElement).data('almax');
       var almin_message = $(dateElement).data('alminmessage');
@@ -76,42 +76,42 @@ $(document).on('daPageLoad', function(){{
       
       var monthId = dateElement.id + '-month';
       var monthParent = $('<div class="col">');
-      var monthLabel = $('<label style="text-align:center">{month}</label>');
+      var monthLabel = $('<label>{{month}}</label>');
       monthLabel.attr( 'for', monthId );
-      var monthElement = $('<select class="form-select al-split-date month ' + dateElement.id + '" style="width:7.5em">');
+      var monthElement = $('<select class="form-select al_split_date month ' + dateElement.id + '">');
       monthElement.attr( 'id', monthId );
       monthElement.attr( 'required', required );
       monthElement.prop( 'required', required );
       
       var dayId = dateElement.id + '-day';
       var dayParent = $('<div class="col">');
-      var dayLabel = $('<label style="text-align:center">{day}</label>');
+      var dayLabel = $('<label>{{day}}</label>');
       dayLabel.attr( 'for', dayId );
       // Reconsider type `number`
       // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
       // `inputmode` ("numeric") not fully supported yet (02/09/2023)
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
-      var dayElement = $('<input class="form-control day al-split-date ' + dateElement.id + '" type="number" min="1" max="31">' );
+      var dayElement = $('<input class="form-control day al_split_date ' + dateElement.id + '" type="number" min="1" max="31">' );
       dayElement.attr( 'id', dayId );
       dayElement.attr( 'required', required );
       dayElement.prop( 'required', required );
       
       var yearId = dateElement.id + '-year';
       var yearParent = $('<div class="col">');
-      var yearLabel = $('<label style="text-align:center">{year}</label>');
+      var yearLabel = $('<label>{{year}}</label>');
       yearLabel.attr( 'for', yearId );
       //Do not restrict year input range for now.
       // Reconsider type `number`
       // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
       // `inputmode` ("numeric") not fully supported yet (02/09/2023)
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
-      var yearElement = $('<input class="form-control year al-split-date ' + dateElement.id + '" type="number">');
+      var yearElement = $('<input class="form-control year al_split_date ' + dateElement.id + '" type="number">');
       yearElement.attr( 'id', yearId );
       yearElement.attr( 'required', required );
       yearElement.prop( 'required', required );
       
-      // TODO: try removing this
-      var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al-split-date error"></div>');
+      //// TODO: try removing this
+      //var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al_split_date error"></div>');
         
       // If we're returning to a variable that has already been defined
       // prepare to use that variable's values
@@ -179,8 +179,8 @@ $(document).on('daPageLoad', function(){{
       $(yearParent).append(yearLabel);
       $(yearParent).append(yearElement);
       $(parentElement).append(yearParent);
-      // TODO: try removing this
-      $(parentElement).append(errorElement);
+      //// TODO: try removing this
+      //$(parentElement).append(errorElement);
       
       // -- Update on 'change' event --
       
@@ -218,11 +218,8 @@ $(document).on('daPageLoad', function(){{
           almax: {{
             depends: function(element) {{
               // Birthdates always have a max value
+              // TODO: Should the dev still be able to override? 
               if ( is_birthdate(element) ) {{
-                // Q: Something is going on because this whole thing is run
-                // three times, once for each field. Are we going to have problems
-                // when there are e.g. multiple 3-part dates on the page?
-                console.log('is birthdate');  // With 1 3-part field and 1 bday, gets logged 3 times
                 return true;
               }}
               // Otherwise, check the element itself
@@ -239,6 +236,7 @@ $(document).on('daPageLoad', function(){{
           // Add this error validation to the existing error validation
           var originalErrorPlacement = $('#daform').validate().settings.errorPlacement;
           var errorPlacement = function(error, element) {{
+            console.log('error:', error);
             // Finds an AL date parent
             var $parent = get_$parent(element);
             
@@ -251,7 +249,7 @@ $(document).on('daPageLoad', function(){{
             // Otherwise, use our custom error labeling
             $($parent.find('span.invalid-feedback')).remove();
             // For codepen practice:
-            // $($parent.find('label.error')).remove();
+            $($parent.find('label.error')).remove();
             $(error).appendTo($parent);
             // Add class 'is-invalid', set aria-invalid to true
             // and aria-describedby to something like
@@ -269,33 +267,34 @@ $(document).on('daPageLoad', function(){{
           
           // -- Styling (see al_dates.css) --
           
-          var originalHighlight = $('#daform').validate().settings.highlight;
-          var highlight = function(element, errorClass, validClass) {{
-            // Finds an AL date parent
-            var $al_parent = get_$parent(element);
-            // Highlight all of the children inputs
-            // TODO: Only do this on min/max/invalid date failures
-            $al_parent.addClass('invalid');
-            
-            originalHighlight(element, errorClass, validClass);
-          }};
-          // Override the previous highlight
-          var validator = $("#daform").data('validator');
-          validator.settings.highlight = highlight;
-          
-          var originalUnhighlight = $('#daform').validate().settings.unhighlight;
-          var unhighlight = function(element, errorClass, validClass) {{
-            // Finds an AL date parent
-            var $al_parent = get_$parent(element);
-            // Unhighlight all of the children inputs
-            // TODO: Only do this on min/max/invalid date failures
-            $al_parent.removeClass('invalid');
-            
-            originalUnhighlight(element, errorClass, validClass);
-          }};
-          // Override the previous highlight
-          var validator = $("#daform").data('validator');
-          validator.settings.unhighlight = unhighlight;
+          // // TODO: Remove highlight control
+          // var originalHighlight = $('#daform').validate().settings.highlight;
+          // var highlight = function(element, errorClass, validClass) {{
+            // // Finds an AL date parent
+            // var $al_parent = get_$parent(element);
+            // // Highlight all of the children inputs
+            // // TODO: Only do this on min/max/invalid date failures
+            // $al_parent.addClass('al_invalid');
+//             
+            // originalHighlight(element, errorClass, validClass);
+          // }};
+          // // Override the previous highlight
+          // var validator = $("#daform").data('validator');
+          // validator.settings.highlight = highlight;
+//           
+          // var originalUnhighlight = $('#daform').validate().settings.unhighlight;
+          // var unhighlight = function(element, errorClass, validClass) {{
+            // // Finds an AL date parent
+            // var $al_parent = get_$parent(element);
+            // // Unhighlight all of the children inputs
+            // // TODO: Only do this on min/max/invalid date failures
+            // $al_parent.removeClass('al_invalid');
+//             
+            // originalUnhighlight(element, errorClass, validClass);
+          // }};
+          // // Override the previous highlight
+          // var validator = $("#daform").data('validator');
+          // validator.settings.unhighlight = unhighlight;
           
           // -- Messages --
           var default_min_message = 'This date is too early';
@@ -328,12 +327,10 @@ $(document).on('daPageLoad', function(){{
   
   // No jQuery validation for original field, since it doesn't work on hidden
   // elements last time we tried
-
+  
   $.validator.addMethod('almin', function(value, element, params) {{
-    // TODO: special invalidation for invalid dates
-    // TODO: add highlighting class to parent in here, since
-    // min invalidates all. That way styling will be per invalidation
-    // type. Still need to remove in `unhighlight`. Also still need
+    // TODO: elsewhere add special invalidation for invalid dates
+    // TODO:  need
     // to figure out how to prioritize types of validation.
     
     var data = get_date_data(element);
@@ -348,15 +345,16 @@ $(document).on('daPageLoad', function(){{
       // TODO: https://stackoverflow.com/a/8098359/14144258
       return true;
     }}
-    var $parent = get_$parent(element);
+    var $al_parent = get_$parent(element);
     // TODO: Catch invalid min dates? Useful for devs. Otherwise very hard to track down.
-    var date_min = new Date($parent.attr('data-almin'));
-    // console.log('data', data, 'date_val', date_val);
-    // console.log( '$parent', $parent );
-    // console.log('date_min', date_min);
-    return date_val >= date_min;
+    var date_min = new Date($al_parent.attr('data-almin'));
+    let is_valid = date_val >= date_min;
+    handle_parent_validation({{ element, is_valid }});
+    
+    return is_valid;
   }});
-
+  
+  
   $.validator.addMethod('almax', function(value, element, params) {{
     // TODO: special invalidation for invalid dates
     // TODO: add highlighting class to parent in here, since
@@ -375,8 +373,8 @@ $(document).on('daPageLoad', function(){{
       // TODO: https://stackoverflow.com/a/8098359/14144258
       return true;
     }}
-    var $dates_parent = get_$parent(element);
-    var max_attr = $dates_parent.attr('data-almax')
+    var $al_parent = get_$parent(element);
+    var max_attr = $al_parent.attr('data-almax')
     // TODO: Catch invalid max dates? Useful for devs, but not as useful as min.
     var date_max = new Date(max_attr);
     if ( isNaN(date_max) && is_birthdate(element)) {{
@@ -384,9 +382,33 @@ $(document).on('daPageLoad', function(){{
     }}
     // console.log('max_attr', max_attr, 'date_max', date_max);
     // Note that a year input of "1" counts as a date of 2001
-    return date_val <= date_max;
+    let is_valid = date_val <= date_max;
+    handle_parent_validation({{ element, is_valid }});
+    
+    if ($al_parent.find('.temp')) {{
+      
+    }}
+    
+    return is_valid;
   }});
-
+  
+  
+  $.validator.addMethod('required', function(value, element, params) {{
+    let $element = $(element);
+    var $al_parent = get_$parent(element);
+    if ($element.val() === '') {{
+      handle_parent_validation({{element, is_valid: true}});
+      $al_parent.addClass('al_invalid_child');
+      $element.addClass('al_invalid');
+      return false;
+    }} else {{
+      $al_parent.removeClass('al_invalid_child');
+      $element.removeClass('al_invalid');
+      return true;
+    }}
+  }});
+  
+  
   function get_date_data (element) {{
     /**
     * Given an element that holds a part of the date information,
@@ -404,27 +426,40 @@ $(document).on('daPageLoad', function(){{
     }};
     // console.log( 'date_data in get_date_date()', date_data );
     return date_data;
-
   }};  // Ends get_date_data()
+  
   
   function get_$parent(element) {{
     /** Return the element we created to surround our date elements.
     *   Easier to maintain all in one place. */
     // `.closest()` will get the element itself if appropriate
-    return $(element).closest('.al-split-date-parent');
+    return $(element).closest('.al_split_date_parent');
   }};  // Ends get_$parent()
-
+  
+  
   function is_birthdate(element) {{
     /** If the element is part of a birthdate field, returns true, otherwise false. */
     let $search_results = get_$parent(element).parent().find('.daALBirthDateTestValidation');
     return Boolean($search_results[0]);
   }};  // Ends is_birthdate()
-
+  
+  
+  function handle_parent_validation({{ element, is_valid }}) {{
+    let $al_parent = get_$parent(element);
+    if (is_valid) {{
+      $al_parent.removeClass('al_invalid');
+    }} else {{
+      $al_parent.addClass('al_invalid');
+    }}
+  }};  // Ends handle_parent_validation()
+  
 }});  // ends on da page load
+
 
 }} catch (error) {{
   console.error('Error in AL date CusotmDataTypes', error);
 }}
+
 """
 
 
