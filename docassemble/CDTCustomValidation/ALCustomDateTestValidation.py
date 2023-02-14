@@ -13,16 +13,27 @@ import re
 js_text = """\
 //this is an adaptation of Jonathan Pyle's datereplace.js
 
+
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
-*  missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
-*  information that cannot be correct (for example, the number ‘13’ in the month field)
-*  information that fails validation for another reason
-*     (note: maybe less than 4 digits in year, too)
-* Their "valid date" code: https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
+*  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
+*  2. information that cannot be correct (for example, the number ‘13’ in the month field)
+*  3. information that fails validation for another reason
+*     (note: maybe less than 4 digits in year counts? Maybe it's #2)
 */
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
-// https://design-system.service.gov.uk/components/date-input/#error-messages
+// TODO: test copy/pasting input
+// TODO: Set names of inputs to same as ids of inputs, then use
+// the other things that go with it, like `for`. Also, we might then
+// be able to make a jQuery validation plugin `group`. Still not sure
+// `group` is useful since we need to sometimes treat the fields
+// individually. https://stackoverflow.com/a/14147170/14144258
+// TODO: Check out `ignore: ''` https://stackoverflow.com/questions/13692061/using-the-jquery-validate-plugin-to-check-if-one-or-more-checkboxes-with-differ#comment18861816_13708252
+// That might break docassemble things, though, if we can't make it specific
+// to just these fields.
+// TODO: Latest error message is taking precedence while all previously invalid
+// fields are still red. Change that. (Beyond MVP?)
+  
 var priorites_date_part = {{
   empty: 1,
   out_of_range: 2,
@@ -56,6 +67,8 @@ $(document).on('daPageLoad', function(){{
       var almax = $(dateElement).data('almax');
       var almin_message = $(dateElement).data('alminmessage');
       var almax_message = $(dateElement).data('almaxmessage');
+      // TODO: invalid date message. Allow dev to disable?
+      // TODO: 4-digit year message. Allow dev to disable?
       
       // Avoid .data for our dynamic stuff - caching problems
       // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
@@ -65,15 +78,6 @@ $(document).on('daPageLoad', function(){{
       
       $(parentElement).attr('data-alminmessage', almin_message);
       $(parentElement).attr('data-almaxmessage', almax_message);
-      
-      // TODO: Set names of inputs to same as ids of inputs, then use
-      // the other things that go with it, like `for`. We might then
-      // be able to make a jQuery validation plugin `group`. Still not sure
-      // `group` is useful since we need to sometimes treat the fields
-      // individually. https://stackoverflow.com/a/14147170/14144258
-      // TODO: Check out `ignore: ''` https://stackoverflow.com/questions/13692061/using-the-jquery-validate-plugin-to-check-if-one-or-more-checkboxes-with-differ#comment18861816_13708252
-      // That might break docassemble things, though, if we can't make it specific
-      // to just these fields.
       
       var monthId = dateElement.id + '-month';
       var monthParent = $('<div class="col">');
@@ -92,7 +96,7 @@ $(document).on('daPageLoad', function(){{
       // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
       // `inputmode` ("numeric") not fully supported yet (02/09/2023)
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
-      var dayElement = $('<input class="form-control day al_split_date ' + dateElement.id + '" type="number" min="1" max="31">' );
+      var dayElement = $('<input class="form-control day al_split_date ' + dateElement.id + '" type="number" min="1">' );
       dayElement.attr( 'id', dayId );
       dayElement.attr( 'required', required );
       dayElement.prop( 'required', required );
@@ -106,13 +110,13 @@ $(document).on('daPageLoad', function(){{
       // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-409848587
       // `inputmode` ("numeric") not fully supported yet (02/09/2023)
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
-      var yearElement = $('<input class="form-control year al_split_date ' + dateElement.id + '" type="number">');
+      var yearElement = $('<input class="form-control year al_split_date ' + dateElement.id + '" type="number" min="1">');
       yearElement.attr( 'id', yearId );
       yearElement.attr( 'required', required );
       yearElement.prop( 'required', required );
       
-      //// TODO: try removing this
-      //var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al_split_date error"></div>');
+      // TODO: try removing this
+      var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al_split_date error"></div>');
         
       // If we're returning to a variable that has already been defined
       // prepare to use that variable's values
@@ -180,8 +184,8 @@ $(document).on('daPageLoad', function(){{
       $(yearParent).append(yearLabel);
       $(yearParent).append(yearElement);
       $(parentElement).append(yearParent);
-      //// TODO: try removing this
-      //$(parentElement).append(errorElement);
+      // TODO: try removing this
+      $(parentElement).append(errorElement);
       
       // -- Update on 'change' event --
       
@@ -208,10 +212,13 @@ $(document).on('daPageLoad', function(){{
       
       // `depends` docs: https://stackoverflow.com/a/13626251/14144258 and
       // https://jqueryvalidation.org/validate/
+      // TODO: the most recent error message overwrites the others. Maybe
+      // help? https://stackoverflow.com/a/71957334
       $('.' + dateElement.id).each(function() {{
         let elem = this;
         $(elem).rules( 'add', {{
-          // TODO: Will these messages come through on their own? Doubt it.
+          _alvaliddate: true,  // Valid date
+          // _al4digityear: true,  // 4-digit year
           almin: {{
             depends: function(element) {{
               return get_$parent(element).attr('data-almin') !== undefined;
@@ -238,7 +245,6 @@ $(document).on('daPageLoad', function(){{
           // Add this error validation to the existing error validation
           var originalErrorPlacement = $('#daform').validate().settings.errorPlacement;
           var errorPlacement = function(error, element) {{
-            console.log('error:', error);
             // Finds an AL date parent
             var $parent = get_$parent(element);
             
@@ -299,11 +305,15 @@ $(document).on('daPageLoad', function(){{
           // validator.settings.unhighlight = unhighlight;
           
           // -- Messages --
-          var default_min_message = 'This date is too early';
-          var default_max_message = 'This date is too late';
+          
+          // IMPORTANT: If the developer can put in their own messages,
+          // they will also be able to make sure that they are translated.
+          
+          var default_min_message = 'This date is too early.';
+          var default_max_message = 'This date is too late.';
           // Birthdays have a different default max message
           if (is_birthdate(event.target)) {{
-            default_max_message = 'The birthdate must be in the past';
+            default_max_message = 'The birthdate must be in the past.';
           }}
           
           var min_message = get_$parent(this).attr('data-alminmessage') || default_min_message;
@@ -314,6 +324,11 @@ $(document).on('daPageLoad', function(){{
           // So far we've seen other messages still show up just fine.
           $(this).rules('add', {{
             messages: {{
+              _alvaliddate: jQuery.validator.format('There cannot be that many days in this month.'),
+              // _alvaliddate: function () {{
+              //   // "monthname doesn't have that many days"
+              // }},
+              // _alyear: "",
               almin: min_message,
               almax: max_message,
             }},
@@ -331,9 +346,9 @@ $(document).on('daPageLoad', function(){{
   // elements last time we tried
   
   $.validator.addMethod('almin', function(value, element, params) {{
+    // This only handles `max`. Handle invalid date input elsewhere.
     // TODO: elsewhere add special invalidation for invalid dates
-    // TODO:  need
-    // to figure out how to prioritize types of validation.
+    // TODO:  need to figure out how to prioritize types of validation.
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -343,8 +358,6 @@ $(document).on('daPageLoad', function(){{
     }}
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
     if ( isNaN( date_val ) ) {{
-      // This only handles `max`. Handle invalid date input elsewhere.
-      // TODO: https://stackoverflow.com/a/8098359/14144258
       return true;
     }}
     var $al_parent = get_$parent(element);
@@ -358,6 +371,7 @@ $(document).on('daPageLoad', function(){{
   
   
   $.validator.addMethod('almax', function(value, element, params) {{
+    // This only handles `max`. Handle invalid date input elsewhere.
     // TODO: special invalidation for invalid dates
     // TODO: add highlighting class to parent in here, since
     // max invalidates all
@@ -368,11 +382,10 @@ $(document).on('daPageLoad', function(){{
     if (data.year == '' || data.month == '' || data.day === '') {{
       return true;
     }}
+    
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
     // TODO: Will not check for 2/31/nnnn, etc.
-    if ( isNaN( date_val ) ) {{
-      // This only handles `max`. Handle invalid date input elsewhere.
-      // TODO: https://stackoverflow.com/a/8098359/14144258
+    if (isNaN(date_val)) {{
       return true;
     }}
     var $al_parent = get_$parent(element);
@@ -387,28 +400,37 @@ $(document).on('daPageLoad', function(){{
     let is_valid = date_val <= date_max;
     handle_parent_validation({{ element, is_valid }});
     
-    if ($al_parent.find('.temp')) {{
-      
-    }}
-    
     return is_valid;
   }});
   
   
   $.validator.addMethod('required', function(value, element, params) {{
-    let $element = $(element);
-    var $al_parent = get_$parent(element);
-    if ($element.val() === '') {{
-      handle_parent_validation({{element, is_valid: true}});
-      $al_parent.addClass('al_invalid_child');
-      $element.addClass('al_invalid');
-      return false;
-    }} else {{
-      $al_parent.removeClass('al_invalid_child');
-      $element.removeClass('al_invalid');
-      return true;
+    // This is indeed taking precedence right now, but I'm not sure why
+    let is_valid = $(element).val() !== '';
+    handle_part_validation({{element, is_valid}});
+    return is_valid;
+  }});  // ends validate 'required'
+  
+  
+  $.validator.addMethod('_alvaliddate', function(value, element, params) {{
+    /** Checks if full input values cannot be converted to a matching Date object.
+    *   E.g. 12/43/2000 has an invalid day. HTML doesn't do this natively.
+    *   Only day inputs can create mismatching dates. */
+    let validity_vals = get_date_inputs_validity(element);
+    
+    let is_valid = validity_vals.day === true;
+    // Display invalid highlighting on day elem if needed
+    if (!is_valid) {{
+      let $al_parent = get_$parent(element);
+      let day_elem = $al_parent.find('.day')[0];
+      handle_part_validation({{
+        element: day_elem,
+        is_valid: is_valid,
+      }});
     }}
-  }});
+    
+    return is_valid;
+  }});  // ends validate '_alvaliddate'
   
   
   function get_date_data (element) {{
@@ -440,13 +462,14 @@ $(document).on('daPageLoad', function(){{
   
   
   function is_birthdate(element) {{
-    /** If the element is part of a birthdate field, returns true, otherwise false. */
+    /** If the element is part of a al birthdate field, returns true, otherwise false. */
     let $search_results = get_$parent(element).parent().find('.daALBirthDateTestValidation');
     return Boolean($search_results[0]);
   }};  // Ends is_birthdate()
   
   
   function handle_parent_validation({{ element, is_valid }}) {{
+    /** Add appropriate classes for invalid full al date. */
     let $al_parent = get_$parent(element);
     if (is_valid) {{
       $al_parent.removeClass('al_invalid');
@@ -454,6 +477,112 @@ $(document).on('daPageLoad', function(){{
       $al_parent.addClass('al_invalid');
     }}
   }};  // Ends handle_parent_validation()
+  
+  
+  function handle_part_validation({{element, is_valid}}) {{
+    /** Add appropriate classes for invalid al date part. */
+    var $element = $(element);
+    var $al_parent = get_$parent(element);
+    if (is_valid) {{
+      $al_parent.removeClass('al_invalid_child');
+      $element.removeClass('al_invalid');
+    }} else {{
+      handle_parent_validation({{element, is_valid: true}});
+      $al_parent.addClass('al_invalid_child');
+      $element.addClass('al_invalid');
+    }}
+  }};  // Ends handle_part_validation()
+  
+  
+  function get_date_inputs_validity(element) {{
+    /** Given a date part element, returns a {{year, month, day}} object.
+    *   Each property is true if the input is valid and false if the input
+    *   is invalid. If any inputs are empty, all properties will be true.
+    *   Thus the dropdown input month will always be valid
+    *
+    * What would make a year or month invalid? Negative numbers? That's taken care of elsewhere.
+    *    If only a day can be invalid, this can be made more simple.
+    *
+    * Inspired by https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
+    * 
+    * @param element {{HTMLNode}} An input in the al split date picker
+    * 
+    * Examples:
+    * 10//2000  // {{year: true, month: true, day: true}}
+    * 10/10/2000  // {{year: true, month: true, day: true}}
+    * 10/32/2000  // {{year: true, month: true, day: false}}
+    * Only day can be invalid in this way?
+    * 12/42/2000  // {{year: true, month: true, day: false}}? {{year: false, month: true, day: false}}?
+    */
+    var input_status = {{
+      year: true, month: true, day: true,
+    }};
+    
+    var data = get_date_data(element);
+    // Don't invalidate if the date is only partly filled. Empty input fields
+    // should take care of themselves
+    // if (data.year == '' || data.month == '' || data.day === '') {{
+    if (data.day === '') {{
+      return input_status;
+    }}
+    
+    if (parseInt(data.day) > 31) {{
+      input_status.day = false;
+      return input_status;
+    }}
+    
+    // Ensure a valid date to check against, so
+    // day can always be validated. Is this appropriate?
+    if (data.year === '') {{data.year = 2000;}}
+    if (data.month === '') {{data.month = 1;}}
+    
+    const dateStringParts = [data.year, data.month, data.day];
+    const [year, month, day] = dateStringParts.map((str) => {{
+      let value;
+      const parsed = parseInt(str, 10);
+      if (!Number.isNaN(parsed)) value = parsed;
+      return value;
+    }});
+    // Would month or year ever be null?
+    input_status.year = year !== null;
+    input_status.month = month !== null;
+    input_status.day = day !== null;
+    
+    // TODO: Show failing max day anytime it exists. don't wait for all input
+    if (month && day && year != null) {{
+      const checkDate = setDate({{
+        year: year,
+        month: month - 1,
+        date: day
+      }});
+      
+      // What non-'' year could cause an invalid date?
+      // If month as a value, it's always valid (dropdown)
+      if (
+        checkDate.getFullYear() !== year ||
+        checkDate.getMonth() !== (month - 1) ||
+        checkDate.getDate() !== day
+      ) {{
+        input_status.day = false;
+      }}
+    }}
+    
+    return input_status;
+  }};  // Ends get_date_inputs_validity()
+  
+  /**
+   * Set date from month day year
+   *
+   * @param {{number}} year the year to set
+   * @param {{number}} month the month to set (zero-indexed)
+   * @param {{number}} date the date to set
+   * @returns {{Date}} the set date
+   */
+  const setDate = ({{year, month, date}}) => {{
+    const newDate = new Date(0);
+    newDate.setFullYear(year, month, date);
+    return newDate;
+  }};
   
 }});  // ends on da page load
 
@@ -496,6 +625,8 @@ def check_empty_parts(item: str, default_msg="{} is not a valid date") -> Option
 class ALThreePartsDateTestValidation(CustomDataType):
     name = "ALThreePartsDateTestValidation"
     input_type = "ALThreePartsDateTestValidation"
+    # Alternatively, is it possible to allow the developer to put in their own values
+    # for these labels?
     javascript = js_text.format(month=word("Month"), day=word("Day"), year=word("Year"))
     jq_message = word("Answer with a valid date")
     is_object = True
