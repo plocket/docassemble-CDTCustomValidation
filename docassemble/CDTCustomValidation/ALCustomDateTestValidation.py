@@ -18,8 +18,8 @@ js_text = """\
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
 *  2. information that cannot be correct (for example, the number ‘13’ in the month field)
+*     (TODO: maybe less than 4 digits in year counts? Maybe it's #3 priority?)
 *  3. information that fails validation for another reason
-*     (note: maybe less than 4 digits in year counts? Maybe it's #2)
 *
 * For invalidation styling see al_dates.css.
 */
@@ -36,8 +36,8 @@ try {{
 // to just these fields.
 // TODO: Latest error message is taking precedence while all previously invalid
 // fields are still red. Change that. (Beyond MVP?)
-// TODO: 'required' validation message disappears if one required field
-// is filled in.
+// TODO: UK guidance says to add hidden text "Error:" at the beginning of a feedback
+// message for screen readers.
   
 var priorites_date_part = {{
   empty: 1,
@@ -52,13 +52,13 @@ var priorities_full_date = {{
   
   
 $(document).on('daPageLoad', function(){{
+  // TODO: Abstract contents so it's not as hard to see where pageload ends
+  // and things can be less indented.
   
-  
-  // Custom validation
   // We can't use `$("#myform").validate({{rules:{{...}} }})
   // etc. because it needs names and we don't have them here.
   $('#daform').validate({{}});
-  //this is an adaptation of Jonathan Pyle's datereplace.js
+  // TODO: unindent the below by 1
     $('input[type="ALThreePartsDateTestValidation"]').each(function(){{
       var dateElement = this;
       var required = $(dateElement).closest('.da-form-group').hasClass('darequired');
@@ -221,8 +221,8 @@ $(document).on('daPageLoad', function(){{
       $('.' + dateElement.id).each(function() {{
         let elem = this;
         $(elem).rules( 'add', {{
-          _alvaliddate: true,  // Valid date
-          // _al4digityear: true,  // 4-digit year
+          _alvaliddate: true,  // Values must create an existing date (i.e. no 2/31)
+          _al4digityear: true,
           almin: {{
             depends: function(element) {{
               return get_date_element_data({{element, attr: 'almin'}}) !== undefined;
@@ -308,11 +308,14 @@ $(document).on('daPageLoad', function(){{
           // So far we've seen other messages still show up just fine.
           $(this).rules('add', {{
             messages: {{
+              // TODO: For valid date, recommended is "The date must be a real date", but we
+              // know it's the day that's the problem. Should we be more specific than the
+              // recommendations?
               _alvaliddate: jQuery.validator.format('There are not that many days in this month.'),
               // _alvaliddate: function () {{
               //   // "monthname doesn't have that many days"
               // }},
-              // _alyear: "",
+              _al4digityear: "Year must include 4 numbers.",
               almin: min_message,
               almax: max_message,
             }},
@@ -329,6 +332,41 @@ $(document).on('daPageLoad', function(){{
   
   // No jQuery validation for original field, since it doesn't work on hidden
   // elements last time we tried
+  
+  // --- Validation methods ---
+  
+  // - Inidividual field validations
+  
+  $.validator.addMethod('required', function(value, element, params) {{
+    /** Returns true if there is a value in the input. Also makes sure the
+    *   individual field gets highlighted if they're invalid. */
+    let is_valid = $(element).val() !== '';
+    handle_part_validation({{element, is_valid}});
+    return is_valid;
+  }});  // ends validate 'required'
+  
+  
+  $.validator.addMethod('_al4digityear', function(value, element, params) {{
+    /** Returns true if year input has 4 digits.
+    *   Ensure invalid field is highlighted.
+    *   Only day inputs can create mismatching dates. */
+    let $year = $(get_$parent(element).find('.year')[0]);
+    // Empty year is not invalid in this way
+    if ($year.val() === '') {{return true;}}
+    let is_valid = $year.val().length === 4 ;
+    
+    if (!is_valid) {{
+      handle_part_validation({{
+        element: $year[0],
+        is_valid: is_valid,
+      }});
+    }}
+    
+    return is_valid;
+  }});  // ends validate '_al4digityear'
+  
+  
+  // - Whole date validations
   
   $.validator.addMethod('almin', function(value, element, params) {{
     /** Returns true if full date is >= min date Also makes sure
@@ -386,18 +424,9 @@ $(document).on('daPageLoad', function(){{
   }});  // ends validate 'almax'
   
   
-  $.validator.addMethod('required', function(value, element, params) {{
-    /** Returns true if there is a value in the input. Also makes sure the
-    *   individual field gets highlighted if they're invalid. */
-    let is_valid = $(element).val() !== '';
-    handle_part_validation({{element, is_valid}});
-    return is_valid;
-  }});  // ends validate 'required'
-  
-  
   $.validator.addMethod('_alvaliddate', function(value, element, params) {{
-    /** Checks if full input values cannot be converted to a matching Date object.
-    *   E.g. 12/43/2000 has an invalid day. HTML doesn't do this natively.
+    /** Returns false if full input values cannot be converted to a matching Date object.
+    *   E.g. 2/43/2000 has an invalid day. HTML doesn't do this natively.
     *   Ensure invalid field is highlighted.
     *   Only day inputs can create mismatching dates. */
     let validity_vals = get_date_inputs_validity(element);
@@ -415,6 +444,9 @@ $(document).on('daPageLoad', function(){{
     
     return is_valid;
   }});  // ends validate '_alvaliddate'
+  
+  
+  // --- Getting from the DOM ---
   
   
   function get_date_data(element) {{
@@ -458,6 +490,14 @@ $(document).on('daPageLoad', function(){{
   }};  // Ends is_birthdate()
   
   
+  function get_date_element_data({{element, attr}}) {{
+    let $date = get_$date(element);
+    return $date.data(attr);
+  }};  // Ends get_date_element_data()
+  
+  
+  // --- Validation class manipulation ---
+  
   function handle_parent_validation({{ element, is_valid }}) {{
     /** Add appropriate classes for invalid full al date. */
     let $al_parent = get_$parent(element);
@@ -471,6 +511,8 @@ $(document).on('daPageLoad', function(){{
   
   function handle_part_validation({{element, is_valid}}) {{
     /** Add appropriate classes for invalid al date part. */
+    // TODO: When multiple individual fields are invalid (e.g. empty when required), should
+    // only the field that is currently in focus be highlighted as an error?
     var $element = $(element);
     var $al_parent = get_$parent(element);
     if (is_valid) {{
@@ -479,10 +521,14 @@ $(document).on('daPageLoad', function(){{
     }} else {{
       handle_parent_validation({{element, is_valid: true}});
       $al_parent.addClass('al_invalid_child');
+      // // Ensure just the field in focus is highlighted right now
+      // $al_parent.find('.al_split_date').removeClass('al_invalid');
       $element.addClass('al_invalid');
     }}
   }};  // Ends handle_part_validation()
   
+  
+  // --- Validation calculations ---
   
   function get_date_inputs_validity(element) {{
     /** Given a date part element, returns a {{year, month, day}} object.
@@ -576,15 +622,6 @@ $(document).on('daPageLoad', function(){{
     newDate.setFullYear(year, month, date);
     return newDate;
   }};
-  
-  
-  function get_date_element_data({{element, attr}}) {{
-    let $date = get_$date(element);
-    return $date.data(attr);
-  }};  // Ends get_date_element_data()
-  
-        // var almin_message = $(dateElement).data('alminmessage');
-        // var almax_message = $(dateElement).data('almaxmessage');
   
   
 }});  // ends on da page load
