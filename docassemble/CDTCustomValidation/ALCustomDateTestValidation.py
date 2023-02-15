@@ -11,7 +11,8 @@ from typing import Optional
 import re
 
 js_text = """\
-//this is an adaptation of Jonathan Pyle's datereplace.js
+// This is an adaptation of Jonathan Pyle's datereplace.js
+// Also see https://codepen.io/plocket/pen/mdGbajy?editors=0010
 
 
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
@@ -19,6 +20,8 @@ js_text = """\
 *  2. information that cannot be correct (for example, the number ‘13’ in the month field)
 *  3. information that fails validation for another reason
 *     (note: maybe less than 4 digits in year counts? Maybe it's #2)
+*
+* For invalidation styling see al_dates.css.
 */
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
@@ -33,6 +36,8 @@ try {{
 // to just these fields.
 // TODO: Latest error message is taking precedence while all previously invalid
 // fields are still red. Change that. (Beyond MVP?)
+// TODO: 'required' validation message disappears if one required field
+// is filled in.
   
 var priorites_date_part = {{
   empty: 1,
@@ -61,23 +66,12 @@ $(document).on('daPageLoad', function(){{
       $(dateElement).attr('type', 'hidden');
       $(dateElement).attr('aria-hidden', 'true');
       
-      //Construct the input components
-      var parentElement = $('<div class="form-row row al_split_date_parent">');
-      var almin = $(dateElement).data('almin');
-      var almax = $(dateElement).data('almax');
-      var almin_message = $(dateElement).data('alminmessage');
-      var almax_message = $(dateElement).data('almaxmessage');
-      // TODO: invalid date message. Allow dev to disable?
-      // TODO: 4-digit year message. Allow dev to disable?
+      // -- Construct the input components --
       
       // Avoid .data for our dynamic stuff - caching problems
       // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
       // https://stackoverflow.com/a/8708345/14144258
-      $(parentElement).attr('data-almin', almin);
-      $(parentElement).attr('data-almax', almax);
-      
-      $(parentElement).attr('data-alminmessage', almin_message);
-      $(parentElement).attr('data-almaxmessage', almax_message);
+      var parentElement = $('<div class="form-row row al_split_date_parent">');
       
       var monthId = dateElement.id + '-month';
       var monthParent = $('<div class="col">');
@@ -206,6 +200,14 @@ $(document).on('daPageLoad', function(){{
       }};  // Ends updateDate()
       
       // -- Validation for these elements --
+        
+      // Store dev-created messages 
+      var almin = $(dateElement).data('almin');
+      var almax = $(dateElement).data('almax');
+      var almin_message = $(dateElement).data('alminmessage');
+      var almax_message = $(dateElement).data('almaxmessage');
+      // TODO: invalid date message. Allow dev to disable?
+      // TODO: 4-digit year message. Allow dev to disable?
       
       // TODO: I think it might be possible to use `groups`, but
       // I'm not sure how. This plugin is poorly documented.
@@ -213,7 +215,9 @@ $(document).on('daPageLoad', function(){{
       // `depends` docs: https://stackoverflow.com/a/13626251/14144258 and
       // https://jqueryvalidation.org/validate/
       // TODO: the most recent error message overwrites the others. Maybe
-      // help? https://stackoverflow.com/a/71957334
+      // help? https://stackoverflow.com/a/71957334. Alternatively, in validation
+      // method, put data on nodes and first check for other data that has
+      // already been put in there about prioritization level.
       $('.' + dateElement.id).each(function() {{
         let elem = this;
         $(elem).rules( 'add', {{
@@ -221,7 +225,7 @@ $(document).on('daPageLoad', function(){{
           // _al4digityear: true,  // 4-digit year
           almin: {{
             depends: function(element) {{
-              return get_$parent(element).attr('data-almin') !== undefined;
+              return get_date_element_data({{element, attr: 'almin'}}) !== undefined;
             }}
           }},  // Do I even need to do `depends` if I'm doing it inside this loop?
           almax: {{
@@ -232,14 +236,19 @@ $(document).on('daPageLoad', function(){{
                 return true;
               }}
               // Otherwise, check the element itself
-              return get_$parent(element).attr('data-almax') !== undefined;
+              return get_date_element_data({{element, attr: 'almax'}}) !== undefined;
             }}
           }},
         }});  // ends add rules
         
-        // Avoid later elements overwriting messages of earlier elements by
-        // adding messages dynamically. https://stackoverflow.com/a/20928765/14144258
+        // TODO: Avoid later elements overwriting priority messages of earlier elements by
+        // adding messages dynamically. Maybe https://stackoverflow.com/a/20928765/14144258
+        // Maybe do it by adding data attribs in `addMethod()` and, in the same place
+        // comparing one's own priority to that already present on the element/parent.
+        
         // `.one()` will make sure this is only set once
+        // TODO: bug with validation not working after an unrelated field gets invalid
+        // input. Try `on` instead of `one`.
         $(this).one('change', function (event) {{
         
           // Add this error validation to the existing error validation
@@ -266,48 +275,17 @@ $(document).on('daPageLoad', function(){{
             // using the three elements' `id`s.
             // TODO: In future, this should depend on what kind of invalidation
             // it is. That info could be stored in a `data` attribute
-            
           }};
           // Override the previous errorPlacement
           var validator = $("#daform").data('validator');
           validator.settings.errorPlacement = errorPlacement;
           
-          
-          // -- Styling (see al_dates.css) --
-          
-          // // TODO: Remove highlight control
-          // var originalHighlight = $('#daform').validate().settings.highlight;
-          // var highlight = function(element, errorClass, validClass) {{
-            // // Finds an AL date parent
-            // var $al_parent = get_$parent(element);
-            // // Highlight all of the children inputs
-            // // TODO: Only do this on min/max/invalid date failures
-            // $al_parent.addClass('al_invalid');
-//             
-            // originalHighlight(element, errorClass, validClass);
-          // }};
-          // // Override the previous highlight
-          // var validator = $("#daform").data('validator');
-          // validator.settings.highlight = highlight;
-//           
-          // var originalUnhighlight = $('#daform').validate().settings.unhighlight;
-          // var unhighlight = function(element, errorClass, validClass) {{
-            // // Finds an AL date parent
-            // var $al_parent = get_$parent(element);
-            // // Unhighlight all of the children inputs
-            // // TODO: Only do this on min/max/invalid date failures
-            // $al_parent.removeClass('al_invalid');
-//             
-            // originalUnhighlight(element, errorClass, validClass);
-          // }};
-          // // Override the previous highlight
-          // var validator = $("#daform").data('validator');
-          // validator.settings.unhighlight = unhighlight;
-          
           // -- Messages --
           
-          // IMPORTANT: If the developer can put in their own messages,
+          // IMPORTANT NOTE: If the developer can put in their own messages,
           // they will also be able to make sure that they are translated.
+          // Can we make a template for these messages instead of putting them
+          // in here?
           
           var default_min_message = 'This date is too early.';
           var default_max_message = 'This date is too late.';
@@ -316,15 +294,21 @@ $(document).on('daPageLoad', function(){{
             default_max_message = 'The birthdate must be in the past.';
           }}
           
-          var min_message = get_$parent(this).attr('data-alminmessage') || default_min_message;
-          var max_message = get_$parent(this).attr('data-almaxmessage') || default_max_message;
+          var min_message = get_date_element_data({{
+            element: this,
+            attr: 'alminmessage'
+          }}) || default_min_message;
+          var max_message = get_date_element_data({{
+            element: this,
+            attr: 'almaxmessage'
+          }}) || default_max_message;
           
           // Dynamically set the message
           // TODO: Do we need to ensure other messages aren't errased?
           // So far we've seen other messages still show up just fine.
           $(this).rules('add', {{
             messages: {{
-              _alvaliddate: jQuery.validator.format('There cannot be that many days in this month.'),
+              _alvaliddate: jQuery.validator.format('There are not that many days in this month.'),
               // _alvaliddate: function () {{
               //   // "monthname doesn't have that many days"
               // }},
@@ -338,7 +322,8 @@ $(document).on('daPageLoad', function(){{
         }});  // ends on change
       }});  // ends for all 3 part dates
       
-      // TODO: Maybe add a message for an incomplete date when the parent loses focus
+      // TODO: Add a message for an incomplete date only when the parent loses
+      // focus? Not sure how.
       
     }});  // ends for each input
   
@@ -346,9 +331,9 @@ $(document).on('daPageLoad', function(){{
   // elements last time we tried
   
   $.validator.addMethod('almin', function(value, element, params) {{
-    // This only handles `max`. Handle invalid date input elsewhere.
-    // TODO: elsewhere add special invalidation for invalid dates
-    // TODO:  need to figure out how to prioritize types of validation.
+    /** Returns true if full date is >= min date Also makes sure
+    *   all fields get highlighted when invalid. */
+    // TODO: need to figure out how to prioritize types of validation.
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -360,22 +345,19 @@ $(document).on('daPageLoad', function(){{
     if ( isNaN( date_val ) ) {{
       return true;
     }}
-    var $al_parent = get_$parent(element);
-    // TODO: Catch invalid min dates? Useful for devs. Otherwise very hard to track down.
-    var date_min = new Date($al_parent.attr('data-almin'));
+    // TODO: Catch invalid almin values? Useful for devs. Otherwise very hard
+    // for devs to track down. Log in console?
+    var date_min = new Date(get_date_element_data({{element, attr: 'almin'}}));
     let is_valid = date_val >= date_min;
     handle_parent_validation({{ element, is_valid }});
     
     return is_valid;
-  }});
+  }});  // ends validate 'almin'
   
   
   $.validator.addMethod('almax', function(value, element, params) {{
-    // This only handles `max`. Handle invalid date input elsewhere.
-    // TODO: special invalidation for invalid dates
-    // TODO: add highlighting class to parent in here, since
-    // max invalidates all
-    // console.log('=== validating max ===');
+    /** Returns true if full date is <= max date. Also makes sure
+    *   all fields get highlighted when invalid. */
     
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
@@ -388,24 +370,25 @@ $(document).on('daPageLoad', function(){{
     if (isNaN(date_val)) {{
       return true;
     }}
-    var $al_parent = get_$parent(element);
-    var max_attr = $al_parent.attr('data-almax')
-    // TODO: Catch invalid max dates? Useful for devs, but not as useful as min.
+    
+    var max_attr = get_date_element_data({{element, attr: 'almax'}});
+    // TODO: Catch invalid almax values? Log in console?
     var date_max = new Date(max_attr);
     if ( isNaN(date_max) && is_birthdate(element)) {{
       date_max = new Date(Date.now())
     }}
-    // console.log('max_attr', max_attr, 'date_max', date_max);
+    
     // Note that a year input of "1" counts as a date of 2001
     let is_valid = date_val <= date_max;
     handle_parent_validation({{ element, is_valid }});
     
     return is_valid;
-  }});
+  }});  // ends validate 'almax'
   
   
   $.validator.addMethod('required', function(value, element, params) {{
-    // This is indeed taking precedence right now, but I'm not sure why
+    /** Returns true if there is a value in the input. Also makes sure the
+    *   individual field gets highlighted if they're invalid. */
     let is_valid = $(element).val() !== '';
     handle_part_validation({{element, is_valid}});
     return is_valid;
@@ -415,6 +398,7 @@ $(document).on('daPageLoad', function(){{
   $.validator.addMethod('_alvaliddate', function(value, element, params) {{
     /** Checks if full input values cannot be converted to a matching Date object.
     *   E.g. 12/43/2000 has an invalid day. HTML doesn't do this natively.
+    *   Ensure invalid field is highlighted.
     *   Only day inputs can create mismatching dates. */
     let validity_vals = get_date_inputs_validity(element);
     
@@ -433,7 +417,7 @@ $(document).on('daPageLoad', function(){{
   }});  // ends validate '_alvaliddate'
   
   
-  function get_date_data (element) {{
+  function get_date_data(element) {{
     /**
     * Given an element that holds a part of the date information,
     * return the full date data as an object.
@@ -459,6 +443,12 @@ $(document).on('daPageLoad', function(){{
     // `.closest()` will get the element itself if appropriate
     return $(element).closest('.al_split_date_parent');
   }};  // Ends get_$parent()
+  
+  
+  function get_$date(element) {{
+    let $date = $(get_$parent(element).closest('.dafieldpart').children('input'));
+    return $date;
+  }};  // Ends get_$date()
   
   
   function is_birthdate(element) {{
@@ -507,12 +497,15 @@ $(document).on('daPageLoad', function(){{
     * 
     * @param element {{HTMLNode}} An input in the al split date picker
     * 
-    * Examples:
+    * @examples:
     * 10//2000  // {{year: true, month: true, day: true}}
     * 10/10/2000  // {{year: true, month: true, day: true}}
     * 10/32/2000  // {{year: true, month: true, day: false}}
     * Only day can be invalid in this way?
     * 12/42/2000  // {{year: true, month: true, day: false}}? {{year: false, month: true, day: false}}?
+    * 
+    * @returns {{year: bool, month: bool, day: bool}} Date parts that are
+    *   valid will have a value of `true`
     */
     var input_status = {{
       year: true, month: true, day: true,
@@ -578,11 +571,21 @@ $(document).on('daPageLoad', function(){{
    * @param {{number}} date the date to set
    * @returns {{Date}} the set date
    */
-  const setDate = ({{year, month, date}}) => {{
+  function setDate({{year, month, date}}) {{
     const newDate = new Date(0);
     newDate.setFullYear(year, month, date);
     return newDate;
   }};
+  
+  
+  function get_date_element_data({{element, attr}}) {{
+    let $date = get_$date(element);
+    return $date.data(attr);
+  }};  // Ends get_date_element_data()
+  
+        // var almin_message = $(dateElement).data('alminmessage');
+        // var almax_message = $(dateElement).data('almaxmessage');
+  
   
 }});  // ends on da page load
 
