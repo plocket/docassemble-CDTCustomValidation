@@ -15,26 +15,31 @@ mandatory: True
 question: A custom data type
 fields:
   - text: text
+    # Can't get custom validation message to work
+    validation messages:
+      required: |
+        Custom message.
   - Test: test_cdt
     datatype: altestvalidation
-    #required: False
-  - Test: test_cdt2
-    datatype: altestvalidation
-    required: False
-  - Three parts: test_3_part
-    datatype: ALThreePartsDateTestValidation
-    required: False
-    almin: ${ today() }
-    alminmessage: "Too early 3"
-    almax: 2222-02-05
-    #almaxmessage: "Too late 3"
-  - Birthday: test_b_day
-    datatype: ALBirthDateTestValidation
-    required: True
-    almin: 1111-02-01
-    #alminmessage: "Too early b-day"
-    #almax: 2020-02-06
-    #almaxmessage: "Too late b-day"
+  #- Test: test_cdt2
+  #  datatype: altestvalidation
+  #  required: False
+  #- Three parts: test_3_part
+  #  datatype: ALThreePartsDateTestValidation
+  #  required: False
+  #  almin: ${ today() }
+  #  alminmessage: "Too early 3"
+  #  almax: 2222-02-05
+  #  #almaxmessage: "Too late 3"
+  #  validation messages:
+  #    required: Required!
+  #- Birthday: test_b_day
+  #  datatype: ALBirthDateTestValidation
+  #  required: True
+  #  almin: 1111-02-01
+  #  #alminmessage: "Too early b-day"
+  #  #almax: 2020-02-06
+  #  #almaxmessage: "Too late b-day"
 ---
 mandatory: True
 question: That's it
