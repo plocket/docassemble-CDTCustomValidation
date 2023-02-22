@@ -14,6 +14,8 @@ js_text = """\
 // This is an adaptation of Jonathan Pyle's datereplace.js
 // Also see https://codepen.io/plocket/pen/mdGbajy?editors=0010
 
+// TODO: With any customdatatype of ours on the page, custom validation messages
+// don't work
 
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
@@ -23,6 +25,22 @@ js_text = """\
 *
 * For invalidation styling see al_dates.css.
 */
+
+/* Test:
+Non-required:
+1. Day: 34
+2. Year: 3 (day invalid - too many days)
+3. Click out (day/year invalid - 4 digits)
+4. Year: 3333
+5. Day: 31 (year valid, day invalid - too many days)
+6. Month: Jan
+7. Click out (all invalid - too late)
+8. Month: none
+9. Click out (all valid because incomplete)
+10. Month: Jan
+11. Click out (all invalid - too late)
+*/
+
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
 // TODO: test copy/pasting input
@@ -38,17 +56,12 @@ try {{
 // fields are still red. Change that. (Beyond MVP?)
 // TODO: UK guidance says to add hidden text "Error:" at the beginning of a feedback
 // message for screen readers.
-  
-var priorites_date_part = {{
-  empty: 1,
-  out_of_range: 2,
-  invalid: 3,  // Maybe non-4-digit year
-}};
-var priorities_full_date = {{
-  // Multiple or non-determinate out of range, max, min
-  out_of_range: 1,
-  invalid: 2,
-}};
+// TODO: once one invalid field is valid, other fields that are invalid don't show
+// the message of their own invalidation.
+// TODO: Every field has to validate every other field too? With priority
+// User bugs in da:
+// I can submit the page without entering a birthdate right now. the "required" message only shows up when I start a response and then remove it
+// In addition, if there's an error elsewhere on the screen, the validation error for the date field doesn't appear. so maybe something is weird with the trigger for the jquery validation.
   
   
 $(document).on('daPageLoad', function(){{
@@ -61,7 +74,7 @@ $(document).on('daPageLoad', function(){{
   // TODO: unindent the below by 1
     $('input[type="ALThreePartsDateTestValidation"]').each(function(){{
       var dateElement = this;
-      var required = $(dateElement).closest('.da-form-group').hasClass('darequired');
+      //var required = is_required(dateElement);
       $(dateElement).hide();
       $(dateElement).attr('type', 'hidden');
       $(dateElement).attr('aria-hidden', 'true');
@@ -79,8 +92,7 @@ $(document).on('daPageLoad', function(){{
       monthLabel.attr( 'for', monthId );
       var monthElement = $('<select class="form-select al_split_date month ' + dateElement.id + '">');
       monthElement.attr( 'id', monthId );
-      monthElement.attr( 'required', required );
-      monthElement.prop( 'required', required );
+      monthElement.attr( 'name', monthId );
       
       var dayId = dateElement.id + '-day';
       var dayParent = $('<div class="col">');
@@ -92,8 +104,7 @@ $(document).on('daPageLoad', function(){{
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
       var dayElement = $('<input class="form-control day al_split_date ' + dateElement.id + '" type="number" min="1">' );
       dayElement.attr( 'id', dayId );
-      dayElement.attr( 'required', required );
-      dayElement.prop( 'required', required );
+      dayElement.attr( 'name', dayId );
       
       var yearId = dateElement.id + '-year';
       var yearParent = $('<div class="col">');
@@ -106,11 +117,9 @@ $(document).on('daPageLoad', function(){{
       // Avoid `pattern` - voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
       var yearElement = $('<input class="form-control year al_split_date ' + dateElement.id + '" type="number" min="1">');
       yearElement.attr( 'id', yearId );
-      yearElement.attr( 'required', required );
-      yearElement.prop( 'required', required );
+      yearElement.attr( 'name', yearId );
       
-      // TODO: try removing this
-      var errorElement = $('<span id="' + dateElement.id + '-error" class="da-has-error invalid-feedback al_split_date error"></div>');
+      var errorElement = $('<div id="' + dateElement.id + '-error" class="da-has-error al_split_date_error"></div>');
         
       // If we're returning to a variable that has already been defined
       // prepare to use that variable's values
@@ -133,10 +142,13 @@ $(document).on('daPageLoad', function(){{
       
       // -- Month --
       // "No month selected" option
+      // TODO bug: In codepen, this isn't getting validated for 'required'
+      // until 'submit'. Maybe it's different in da.
       var first_opt = $("<option>");
       first_opt.val("");
       first_opt.text("");
       monthElement.append( first_opt );
+      
       // Add every calendar month (based on user's computer's date system? lanugage?)
       var option = null
       for(var month=0; month < 12; month++) {{
@@ -178,6 +190,15 @@ $(document).on('daPageLoad', function(){{
       $(yearParent).append(yearLabel);
       $(yearParent).append(yearElement);
       $(parentElement).append(yearParent);
+      // Required even being present makes it true
+      if (is_required(monthElement)) {{
+        monthElement.attr( 'required', 'true' );
+        monthElement.prop( 'required', 'true' );
+        dayElement.attr( 'required', 'true' );
+        dayElement.prop( 'required', 'true' );
+        yearElement.attr( 'required', 'true' );
+        yearElement.prop( 'required', 'true' );
+      }}
       // TODO: try removing this
       $(parentElement).append(errorElement);
       
@@ -191,7 +212,6 @@ $(document).on('daPageLoad', function(){{
       // Update value of original input when values change.
       function updateDate() {{
         var data = get_date_data(parentElement);
-        var date_str = data.year + '-' + data.month + '-' + data.day;
         var val = data.month + '/' + data.day + '/' + data.year;
         if ( val === '//' ) {{
           val = '';
@@ -218,9 +238,9 @@ $(document).on('daPageLoad', function(){{
       // help? https://stackoverflow.com/a/71957334. Alternatively, in validation
       // method, put data on nodes and first check for other data that has
       // already been put in there about prioritization level.
-      $('.' + dateElement.id).each(function() {{
-        let elem = this;
+      $('.' + dateElement.id).each(function(index, elem) {{
         $(elem).rules( 'add', {{
+          // 'required' should be happening correctly automatically
           _alvaliddate: true,  // Values must create an existing date (i.e. no 2/31)
           _al4digityear: true,
           almin: {{
@@ -249,25 +269,64 @@ $(document).on('daPageLoad', function(){{
         // `.one()` will make sure this is only set once
         // TODO: bug with validation not working after an unrelated field gets invalid
         // input. Try `on` instead of `one`.
-        $(this).one('change', function (event) {{
+        // $(elem).on('addValidations', function (event) {{
+          // console.log('$this', $(this));
+          
+          // [switching from hide to remove fixed it] √ TODO: too many days in month will show up if year is not 4-digit year and also something else? Maybe only after day number is too high? Also, stacks with others. Year style doesn't get "hidden". Refresh needed?
+          // TODO: When leave empty field, field is highlighted even though there's no message and even when the date is not required. These aren't going through `errorPlacement`. `required` is always true. Why? It's a bool attrib and it's not present on the non-required fields.
+          // Codepen quirk: Regular/default jQuery validation (for attribs like `min`)
+          // don't seem to go through our `errorPlacement()`, but bug only happens if
+          // click in and out of a non-required field after it's been highlighted
+          // (note that it happens without a message) and then click in and out of
+          // a required field that does then get a message underneath its individual
+          // element.
+          
+          // TODO: bug: `errorPlacement` seems to not be called on submit, just on other
+          // kinds of validation. wtf, jquery validation plugin.
         
           // Add this error validation to the existing error validation
           var originalErrorPlacement = $('#daform').validate().settings.errorPlacement;
           var errorPlacement = function(error, element) {{
+            console.log('----')
+            console.log('place error');
+            // console.log(element);
             // Finds an AL date parent
             var $parent = get_$parent(element);
             
             // If this isn't an AL date, use the original behavior
             if (!$parent[0]) {{
+              // console.log('not date part');
               originalErrorPlacement(error, element);
               return;
             }}
             
-            // Otherwise, use our custom error labeling
-            $($parent.find('span.invalid-feedback')).remove();
-            // For codepen practice:
-            $($parent.find('label.error')).remove();
-            $(error).appendTo($parent);
+            // TODO: once one invalid field is valid, other fields that are invalid don't show
+            // the message of their own invalidation.
+            // Must preserve all messages and show them in order of priority somehow
+            // TODO: For individual invalid fields, hide lower priority validation highlighting?
+            
+            // data-priority on element. Give that priority to the new error message.
+            // show the error message with the highest priority of all the error messages.
+            // See if error messages just accumulate if you let them, or if there's only
+            // ever one per field. Also only highlight the most priority invalid field,
+            // but do something different if the whole date is invalid? (lowest priority)
+            
+            // TODO next: How to keep old error messages and show them when
+            // other error messages go away? `.hide()` ended up not hiding
+            // some elements - not defining their `style` properly.
+            
+            // Do with CSS instead
+            // // Otherwise, use our custom error labeling
+            // // Hide all existing labels, so they don't pile up
+            // // TODO: Hide or remove completely?
+            // hide($( $parent.find('span.invalid-feedback') ));
+            // // For codepen practice:
+            // hide($( $parent.find('label.error') ));
+            // // console.log('appending to $parent:', $parent);
+            
+            $(error).appendTo($parent.find('.al_split_date_error')[0]);
+            show_only_last_error(element);
+            
             // Add class 'is-invalid', set aria-invalid to true
             // and aria-describedby to something like
             // "dGVzdF8zX3BhcnQ-year-error dGVzdF8zX3BhcnQ-month-error dGVzdF8zX3BhcnQ-day-error"
@@ -275,22 +334,78 @@ $(document).on('daPageLoad', function(){{
             // using the three elements' `id`s.
             // TODO: In future, this should depend on what kind of invalidation
             // it is. That info could be stored in a `data` attribute
-          }};
+          }};  // Ends errorPlacement()
           // Override the previous errorPlacement
           var validator = $("#daform").data('validator');
           validator.settings.errorPlacement = errorPlacement;
+          
+          // TODO next: How do we
+          // show the error message for an invalid date (day) when the filed is
+          // a month without higlighting the month? Returning valid for the month
+          // will avoid highlighting it, but then won't show the error message.
+          // I just don't know if we can handle higlights globally this way and
+          // still have the behavior we need.
+          // Old: If day is too high, clicking in and out of other
+          // fields will highlight them too, even if they're valid. Is that
+          // because of our global `highlight()`? Do we still want to sometimes
+          // highlight them? E.g. when they have their own errors?
+          
+          // var originalHighlight = $('#daform').validate().settings.highlight;
+          // var highlight = function(element, errorClass, validClass) {{
+          //   // // Make sure this at least highlights the element itself
+          //   // // console.log('highlight', $(element));
+          //   // if ($(element).hasClass('al_split_date')) {{
+          //   //   $(element).addClass('al_invalid');
+          //   // }}
+          //   originalHighlight(element, errorClass, validClass);
+          // }};
+          // // Override the previous highlight
+          // var validator = $("#daform").data('validator');
+          // validator.settings.highlight = highlight;
+          // // console.log($('#daform').validate());  // log settings
+          
+          var originalUnhighlight = $('#daform').validate().settings.unhighlight;
+          var unhighlight = function(element, errorClass, validClass) {{
+            // Make sure this at least unhighlights the element itself
+            if ($(element).hasClass('al_split_date')) {{
+              
+              // Remove label as that has stopped working automatically. It would be
+              // better to know why the label isn't being removed in the first place.
+              // How to track down?
+              let $parent = get_$parent(element);
+              let $error_container = $( $parent.find('.al_split_date_error')[0] );
+              let $label = $( $error_container.find(`label[for="${{ $(element).attr('name') }}"`)[0] );
+              $label.remove();
+              show_only_last_error(element);
+              
+              // da has stopped the plugin from managing the 'error' class
+              // and I believe we've found `is-invalid` to be inconsistent for
+              // our uses.
+              $(element).removeClass('al_invalid');
+              // Ensure parent is valid if there are no errors left
+              if ($error_container.text() === '') {{
+                $parent.removeClass('al_invalid');
+                $parent.removeClass('al_invalid_child');
+              }}
+              
+            }}  // ends if is a split date
+            originalUnhighlight(element, errorClass, validClass);
+          }};
+          // Override the previous highlight
+          var validator = $("#daform").data('validator');
+          validator.settings.unhighlight = unhighlight;
           
           // -- Messages --
           
           // IMPORTANT NOTE: If the developer can put in their own messages,
           // they will also be able to make sure that they are translated.
-          // Can we make a template for these messages instead of putting them
-          // in here?
+          // TODO: Can we make a template for these messages instead of putting
+          // them in here?
           
           var default_min_message = 'This date is too early.';
           var default_max_message = 'This date is too late.';
           // Birthdays have a different default max message
-          if (is_birthdate(event.target)) {{
+          if (is_birthdate(elem)) {{
             default_max_message = 'The birthdate must be in the past.';
           }}
           
@@ -307,6 +422,16 @@ $(document).on('daPageLoad', function(){{
           // TODO: Do we need to ensure other messages aren't errased?
           // So far we've seen other messages still show up just fine.
           $(this).rules('add', {{
+            
+            /*
+            Not able to replicate bug:
+            1. Click in one date's field part
+            1. Avoid entering any input
+            1. Click in another date's field part
+            1. Put something invalid into the field part
+            1. Click out (into original field part or just to anywhere?)
+            */
+            
             messages: {{
               // TODO: For valid date, recommended is "The date must be a real date", but we
               // know it's the day that's the problem. Should we be more specific than the
@@ -315,14 +440,23 @@ $(document).on('daPageLoad', function(){{
               // _alvaliddate: function () {{
               //   // "monthname doesn't have that many days"
               // }},
-              _al4digityear: "Year must include 4 numbers.",
+              _al4digityear: 'The year must have 4 numbers.',
               almin: min_message,
               almax: max_message,
+              // Will this be customizable with da `validation message:`?
+              // Probably not. I don't know to fetch that message, though.
+              // required: 'All fields are required',
             }},
           }});
-          // trigger immediate validation to update message
-          $(this).valid();
-        }});  // ends on change
+          
+        // }});  // ends on addValidations
+        
+        // Not sure if this custom event will be triggered late enough
+        // in da to properly override what it needs to override.
+        // The da stuff is happening before `daPageLoad`, so I'm not
+        // sure why I was having trouble getting `.errorPlacement` to
+        // work properly when it wasn't in `.on('change')`.
+        $(elem).trigger('addValidations');
       }});  // ends for all 3 part dates
       
       // TODO: Add a message for an incomplete date only when the parent loses
@@ -334,17 +468,35 @@ $(document).on('daPageLoad', function(){{
   // elements last time we tried
   
   // --- Validation methods ---
+  // Handling all fields' classes inside each validation needs to be
+  // debugged. I think we need to do that to show the right
+  // highlighting.
+  
+  /*
+  When find a single invalid field
+    Make all other fields' css valid-looking
+    in errorPlacement: Hide old error messages and mark them as aria-hidden
+    Show field as invalid
+    Give parent class al_invalid_child
+    Show field's invalidation message
+  When find whole date invalid (min/max)
+    Show one message
+    Highlight all
+  When find a field is valid
+    Show previous invalid message
+    Avoid unhighlighting other invalid fields
+  When all individual fields are valid
+    Remove class al_invalid_chlid? Maybe that class isn't necessary
+    Unhighlight all fields (including removing parent class)
+  */
+  
+  /* TODO: 'required' bug/problem:
+  One of the month options is a blank option.
+  That should count as not having a value, but it doesn't, so the
+  'required' invalidation doesn't get triggered.
+  */
   
   // - Inidividual field validations
-  
-  $.validator.addMethod('required', function(value, element, params) {{
-    /** Returns true if there is a value in the input. Also makes sure the
-    *   individual field gets highlighted if they're invalid. */
-    let is_valid = $(element).val() !== '';
-    handle_part_validation({{element, is_valid}});
-    return is_valid;
-  }});  // ends validate 'required'
-  
   
   $.validator.addMethod('_al4digityear', function(value, element, params) {{
     /** Returns true if year input has 4 digits.
@@ -366,6 +518,39 @@ $(document).on('daPageLoad', function(){{
   }});  // ends validate '_al4digityear'
   
   
+  $.validator.addMethod('_alvaliddate', function(value, element, params) {{
+    /** Returns false if full input values cannot be converted to a matching Date object.
+    *   E.g. 2/43/2000 has an invalid day. HTML doesn't do this natively.
+    *   Only day inputs can create mismatching dates.
+    *   Ensure invalid field (day field) is highlighted.
+    */
+    let validity_vals = get_date_inputs_validity(element);
+    
+    let is_day_valid = validity_vals.day === true;
+    // Display invalid highlighting on day elem if needed
+    if (!is_day_valid) {{
+      let $al_parent = get_$parent(element);
+      let day_elem = $al_parent.find('.day')[0];
+      handle_part_validation({{
+        element: day_elem,
+        is_valid: is_day_valid,
+      }});
+    }}
+    
+    // For this particular invalidation, avoid highlighting anything
+    // other than the day element
+    let is_valid = true;
+    if ($(element).hasClass('day')) {{
+      is_valid = is_day_valid;
+    }}
+    
+    // TODO: But then how do we get the error message
+    // to appear
+    
+    return is_valid;
+  }});  // ends validate '_alvaliddate'
+  
+  
   // - Whole date validations
   
   $.validator.addMethod('almin', function(value, element, params) {{
@@ -376,14 +561,13 @@ $(document).on('daPageLoad', function(){{
     var data = get_date_data(element);
     // Don't show an error if the date is only partly filled
     if (data.year == '' || data.month == '' || data.day === '') {{
-      // TODO: Add a message for an incomplete date? Elsewhere.
       return true;
     }}
     var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
     if ( isNaN( date_val ) ) {{
       return true;
     }}
-    // TODO: Catch invalid almin values? Useful for devs. Otherwise very hard
+    // TODO: Catch invalid `almin` attr values? Useful for devs. Otherwise very hard
     // for devs to track down. Log in console?
     var date_min = new Date(get_date_element_data({{element, attr: 'almin'}}));
     let is_valid = date_val >= date_min;
@@ -424,29 +608,23 @@ $(document).on('daPageLoad', function(){{
   }});  // ends validate 'almax'
   
   
-  $.validator.addMethod('_alvaliddate', function(value, element, params) {{
-    /** Returns false if full input values cannot be converted to a matching Date object.
-    *   E.g. 2/43/2000 has an invalid day. HTML doesn't do this natively.
-    *   Ensure invalid field is highlighted.
-    *   Only day inputs can create mismatching dates. */
-    let validity_vals = get_date_inputs_validity(element);
-    
-    let is_valid = validity_vals.day === true;
-    // Display invalid highlighting on day elem if needed
-    if (!is_valid) {{
-      let $al_parent = get_$parent(element);
-      let day_elem = $al_parent.find('.day')[0];
-      handle_part_validation({{
-        element: day_elem,
-        is_valid: is_valid,
-      }});
-    }}
-    
-    return is_valid;
-  }});  // ends validate '_alvaliddate'
+  // --- Getting from and manipulate the DOM ---
   
   
-  // --- Getting from the DOM ---
+  function show_only_last_error(element) {{
+    /** Shows only the last error in the error list that's in the error container. */
+    let $parent = get_$parent(element);
+    
+
+    $parent.find('.al_split_date_error label:not(:last-child)').each(function (index, label) {{
+      $(label).attr('hidden', 'true');
+      $(label).attr('aria-hidden', 'true');
+    }});
+    $parent.find('.al_split_date_error label:last-child').each(function (index, label) {{
+      $(label).removeAttr('hidden');
+      $(label).attr('aria-hidden', 'false');
+    }});
+  }};  // Ends show_only_last_error()
   
   
   function get_date_data(element) {{
@@ -471,7 +649,9 @@ $(document).on('daPageLoad', function(){{
   
   function get_$parent(element) {{
     /** Return the element we created to surround our date elements.
-    *   Easier to maintain all in one place. */
+    *   Easier to maintain all in one place.
+    * 
+    * @param {{Node}} element AL split date element. */
     // `.closest()` will get the element itself if appropriate
     return $(element).closest('.al_split_date_parent');
   }};  // Ends get_$parent()
@@ -484,7 +664,10 @@ $(document).on('daPageLoad', function(){{
   
   
   function is_birthdate(element) {{
-    /** If the element is part of a al birthdate field, returns true, otherwise false. */
+    /** If the element is part of a al birthdate field, returns true, otherwise false.
+    * 
+    * @params {{Node}} element A split date part.
+    */
     let $search_results = get_$parent(element).parent().find('.daALBirthDateTestValidation');
     return Boolean($search_results[0]);
   }};  // Ends is_birthdate()
@@ -496,7 +679,31 @@ $(document).on('daPageLoad', function(){{
   }};  // Ends get_date_element_data()
   
   
+  function is_required(element) {{
+    /*** Return true if date value is required, other wise return false.
+    * 
+    * @param {{Node}} element AL split date part.
+    */
+    let $date = get_$date(element);
+    let is_required = $date.closest('.da-form-group').hasClass('darequired');
+    // console.log(is_required, $date);
+    return is_required;
+  }}  // Ends is_required()
+  
+  
   // --- Validation class manipulation ---
+  
+  function hide($element) {{
+    $element.attr('aria-hidden', 'true');
+    $element.attr('hidden', 'true');
+  }};
+  
+  
+  function show($element) {{
+    $element.attr('aria-hidden', 'false');
+    $element.attr('hidden', 'false');
+  }};
+  
   
   function handle_parent_validation({{ element, is_valid }}) {{
     /** Add appropriate classes for invalid full al date. */

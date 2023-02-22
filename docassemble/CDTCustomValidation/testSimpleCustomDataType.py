@@ -14,10 +14,17 @@ class AAA(CustomDataType):
     javascript = """\
 // da's try/catch doesn't log the actual error
 try {
-  $('#daform').validate({});
+$(document).on('daPageLoad', function() {
+  // Both of these destroy da custom validation messages
+  //$('#daform').validate({});
+  //$('#daform').validate();
+  //$('#daform').validate().settings;
+  //$('#daform').validate().resetForm();
+  //$('#daform').valid();
+  //console.log( `$('#daform').rules():`, $('#daform').rules() );
 
   $('.da-ccc').each(function() {
-    $(this).rules('add', {
+    $('#' + $(this).attr('id')).rules('add', {
       min: "2023-02-04",
       ddd: true,
       messages: {
@@ -26,13 +33,15 @@ try {
     })
   });  // ends for every .da-ccc
   
-  //$.validator.addMethod('min', function(value, element, params){
-  //  return new Date(value) > new Date();
-  //});
-
+  $.validator.addMethod('min', function(value, element, params){
+    return new Date(value) > new Date("2023-02-04");
+  });
+  
   $.validator.addMethod('ddd', function(value, element, params){
     return true;
   });
+});  // ends on da page load
+
 } catch (error) {
   console.error( error );
 }

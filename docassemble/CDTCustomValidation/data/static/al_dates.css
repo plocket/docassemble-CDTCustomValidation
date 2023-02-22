@@ -4,15 +4,15 @@
 
 /* Javascript somewhere is setting an inline style. We could try
 to just neutralize it instead. It's just a different kind of war. */
-.al_split_date_parent:not(.al_invalid):not(.al_invalid_child) .invalid-feedback {
+/*.al_split_date_parent:not(.al_invalid):not(.al_invalid_child) .invalid-feedback {
   display: none !important;
-}
+}*/
 
 /* ====================== */
 /* == Invalid styles == */
 /* -- Invalid children elements identified by their parent -- */
 
-.al_split_date_parent.al_invalid .al_split_date,
+/*.al_split_date_parent.al_invalid .al_split_date,
 .al_split_date_parent .al_split_date.al_invalid {
   border-color: var(--bs-danger);
   padding-right: calc(1.5em + 0.75rem);
@@ -42,7 +42,7 @@ to just neutralize it instead. It's just a different kind of war. */
   background-position: right calc(0.375em + 0.1875rem) center;
   background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
   background-image: var(--al-bs-exclamation);
-}
+}*/
 
 /* ====================== */
 /* == Valid styles == */
@@ -59,7 +59,7 @@ Plus padding-right in the element itself. Use unset for image.
 or `var()`, even with `X-UA-Compatible`. da uses `var()` all
 the time. What's the deal? */
 
-.al_split_date_parent:not(.al_invalid) .form-control.is-invalid:not(.al_invalid),
+/*.al_split_date_parent:not(.al_invalid) .form-control.is-invalid:not(.al_invalid),
 .al_split_date_parent:not(.al_invalid) .was-validated .form-control:not(.al_invalid):invalid,
 .al_split_date_parent:not(.al_invalid) .form-select.is-invalid:not(.al_invalid),
 .al_split_date_parent:not(.al_invalid) .was-validated .form-select:not(.al_invalid):invalid {
@@ -75,7 +75,7 @@ the time. What's the deal? */
   border-color: #86b7fe;
   background-image: unset;
   box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 25%);
-}
+}*/
 
 /* This is for when IE is completely unused or implements focus-within. Implement `:not(.al_invalid)`? */
 /*.al_split_date_parent:not(.al_invalid):focus-within .al_split_date.al_invalid:focus,
