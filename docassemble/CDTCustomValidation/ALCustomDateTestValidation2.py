@@ -54,6 +54,11 @@ than that, but that's messy - detect valid on change, detect invalid on blur.
     same
 */
 
+/*
+TODO: prioritize validation
+TODO: Handle un-required partial dates
+*/
+
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
 
@@ -295,12 +300,16 @@ function get_$parent(element) {{
   
 // ==================================================
 // ==================================================
-// === Validation options ===
+// === Validation ===
 // ==================================================
 // ==================================================
   
 function set_up_validation($al_parent) {{
   place_errors();
+  $al_parent.find('.al_split_date').each(function (index, element) {{
+    add_rules(element);
+  }});
+  console.log(`set up validation: $('#daform').validate().settings:`, $('#daform').validate().settings);
 }};  // Ends set_up_validation()
 
   
@@ -328,12 +337,77 @@ function place_errors() {{
   validator.settings.errorPlacement = error_placement;
 }};  // Ends place_errors()
   
+
+function add_rules(element) {{
+  /** Add all date rules to a given $element.
+  * 
+  * @param {{$object}} $element JQuery node for a date part element. */
+  let rules = {{
+    almin: {{
+      depends: function(element) {{
+        return get_$date(element).attr('data-almin') !== undefined;
+      }}
+    }},
+  }};  // ends rules
+  
+  $(element).rules('add', rules);
+}};  // Ends add_rules()
+  
   
 // ==================================================
 // ==================================================
 // === Validation methods ===
 // ==================================================
 // ==================================================
+  
+// -- Whole date validations --
+
+$.validator.addMethod('almin', function(value, element, params) {{
+  /** Returns true if full date is >= min date Also makes sure
+  *   all fields get highlighted when invalid. */
+  if (!date_is_ready_for_min_max(element)) {{
+    return true;
+  }}
+  
+  var data = get_date_data(element);
+  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+  // TODO: Catch invalid `data-almin` attr values? Useful for devs.
+  // Otherwise very hard for devs to track down. Log in console?
+  var date_min = new Date( get_$date(element).attr('data-almin') );
+  let is_valid = date_val >= date_min;
+  // handle_parent_validation({{ element, is_valid }});
+  
+  return is_valid;
+}}, 'blah');  // ends validate 'almin'
+  
+  
+// ==================================================
+// ==================================================
+// === Calculations ===
+// ==================================================
+// ==================================================
+
+function date_is_ready_for_min_max(element) {{
+  /** Return true if date is ready to be evaluated for min/max
+  *   date value invalidation.
+  */
+  var data = get_date_data(element);
+  // Don't evaluate min/max if the date is only partly filled
+  if (data.year == '' || data.month == '' || data.day === '') {{
+    return false;
+  }}
+  // Not sure how we'd get here, but don't evaluate min/max if the date is
+  // invalid in some other way. Maybe negative numbers?
+  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+  if (isNaN(date_val)) {{
+    return false;
+  }}
+  
+  // TODO: Don't show this error if the input values don't create
+  // the expected date (e.g. date is 45th of Jan)
+  
+  return true;
+}};  // Ends date_is_not_ready_for_min_max()
   
   
 }} catch (error) {{
