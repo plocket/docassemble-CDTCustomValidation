@@ -17,6 +17,10 @@ console.log('---- starting custom date 2');
 
 // This is an adaptation of Jonathan Pyle's datereplace.js
 
+/*
+Notes:
+- Rule names must have no dashes.
+*/
 
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
@@ -30,7 +34,8 @@ console.log('---- starting custom date 2');
 /* Validation pseudocode
 
 for any field on any change? on blur? both? Should be more complicated
-than that, but that's messy - detect valid on change, detect invalid on blur.
+than that, but that's messy - first time detect invalid on blur then on change; or
+possibly detect valid on change, detect invalid on blur.
 
   if required (should take care of itself) (ideally only after parent has lost focus)
     if any field is empty
@@ -276,14 +281,12 @@ function get_date_data($element) {{
     month: $(month_elem).val(),
     day: $(day_elem).val(),
   }};
-  // console.log( 'date_data in get_date_date()', date_data );
   return date_data;
 }};  // Ends get_date_data()
 
   
 function get_$date(element) {{
-  // TODO: Try $(element).closest()...
-  let $date = $(get_$parent(element).closest('.dafieldpart').children('input')[0]);
+  let $date = $($(element).closest('.dafieldpart').children('input')[0]);
   return $date;
 }};  // Ends get_$date()
   
@@ -308,17 +311,17 @@ function set_up_validation($al_parent) {{
   place_errors();
   $al_parent.find('.al_split_date').each(function (index, element) {{
     add_rules(element);
+    add_messages(element);
   }});
-  console.log(`set up validation: $('#daform').validate().settings:`, $('#daform').validate().settings);
 }};  // Ends set_up_validation()
 
   
 function place_errors() {{
   // Add this error validation to the existing error validation
-  var original_error_placement = $('#daform').validate().settings.errorPlacement;
-  var error_placement = function(error, element) {{
+  let original_error_placement = $('#daform').validate().settings.errorPlacement;
+  let error_placement = function(error, element) {{
     
-    var $al_parent = get_$parent(element);
+    let $al_parent = get_$parent(element);
     // If this isn't an AL date, use the original behavior
     if (!$al_parent[0]) {{
       // console.log('not date part');
@@ -333,17 +336,17 @@ function place_errors() {{
   }};  // Ends error_placement()
   
   // Override the previous errorPlacement
-  var validator = $("#daform").data('validator');
+  let validator = $("#daform").data('validator');
   validator.settings.errorPlacement = error_placement;
 }};  // Ends place_errors()
   
 
 function add_rules(element) {{
-  /** Add all date rules to a given $element.
+  /** Add all date rules to a given element.
   * 
-  * @param {{$object}} $element JQuery node for a date part element. */
+  * @param {{HTML Node}} element A date part node. */
   let rules = {{
-    almin: {{
+    'almin': {{
       depends: function(element) {{
         return get_$date(element).attr('data-almin') !== undefined;
       }}
@@ -352,6 +355,21 @@ function add_rules(element) {{
   
   $(element).rules('add', rules);
 }};  // Ends add_rules()
+  
+  
+function add_messages(element) {{
+  /** Add all messages for rules for a given element.
+  * 
+  * @param {{HTML Node}} element A date part node. */
+  let messages = {{
+    // Note: Cannot be functions
+    messages: 
+    {{
+      'almin': get_$date(element).attr('data-alminmessage') || 'This date is too early.',
+    }},
+  }};  // ends rules
+  $(element).rules('add', messages);
+}};  // Ends add_messages()
   
   
 // ==================================================
@@ -378,7 +396,7 @@ $.validator.addMethod('almin', function(value, element, params) {{
   // handle_parent_validation({{ element, is_valid }});
   
   return is_valid;
-}}, 'blah');  // ends validate 'almin'
+}});  // ends validate 'almin'
   
   
 // ==================================================
@@ -408,12 +426,6 @@ function date_is_ready_for_min_max(element) {{
   
   return true;
 }};  // Ends date_is_not_ready_for_min_max()
-  
-  
-}} catch (error) {{
-  console.error('Error in AL date CusotmDataTypes', error);
-}}
-
 
 
 // ====================================
@@ -421,6 +433,11 @@ function date_is_ready_for_min_max(element) {{
 // ====================================
 // for codepen
 //$(document).trigger('daPageLoad');
+  
+  
+}} catch (error) {{
+  console.error('Error in AL date CusotmDataTypes', error);
+}}
 
 """
 

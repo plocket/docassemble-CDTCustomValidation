@@ -15,14 +15,14 @@ mandatory: True
 question: A custom data type
 fields:
   - number: number
-    choices:
-      - High School
-      - College
-      - Graduate School
-    #datatype: number
-    #max: 2
-    #validation messages:
-    #  max: Custom message.
+    #choices:
+    #  - High School
+    #  - College
+    #  - Graduate School
+    datatype: number
+    max: 2
+    validation messages:
+      max: Custom message.
     #required: True
   #- Test: test_cdt
   #  datatype: altestvalidation
@@ -55,6 +55,7 @@ fields:
     #almaxmessage: "Too late 3"
     validation messages:
       required: Required!
+    default: 1/1/2000
   - Birthday: test_b_day
     datatype: ALBirthDateTestValidation2
     required: True
