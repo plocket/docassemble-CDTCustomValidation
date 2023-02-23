@@ -54,24 +54,22 @@ than that, but that's messy - detect valid on change, detect invalid on blur.
     same
 */
 
-
 // da doesn't log the full error sometimes, so we'll do our own try/catch
 try {{
 
-// for codepen
-$(document).on('daPageLoad', function() {{
+$(document).on('daPageLoad', function(){{
   
-$('input[type="ALThreePartsDateTestValidation2"]').each(function() {{
-  do_everything(this);
-}});  // ends for each date datatype
+  $('input[type="ALThreePartsDateTestValidation2"]').each(function(){{
+    do_everything(this);
+  }});  // ends for each date datatype
   
-// for codepen
 }});  // ends on da page load
 
   
 function do_everything(element) {{
   let $date = $(element);
-  let {{$al_parent, $year, $month, $day}} = replace_date($date);
+  let {{$al_parent, $year, $month, $day, $error}} = replace_date($date);
+  set_up_validation($al_parent);
 }};
   
 function replace_date($date) {{
@@ -95,9 +93,9 @@ function replace_date($date) {{
   let $day = create_date_part({{date_id, type: 'day'}});
   
   if (is_required($al_parent)) {{
-    $year.attr('required', 'true');
-    $month.attr('required', 'true');
-    $day.attr('required', 'true');
+    $year.attr('required', true);
+    $month.attr('required', true);
+    $day.attr('required', true);
   }}
   
   $al_parent.append($month.closest('.col'));
@@ -113,10 +111,12 @@ function replace_date($date) {{
   $month.on('change', update);
   $day.on('change', update);
   function update() {{
-    update_original_date($date, $al_parent);
+    update_original_date({{$date, $al_parent}});
   }};
   
-  return {{$al_parent, $year, $month, $day}};
+  let $error = add_error($al_parent);
+  
+  return {{$al_parent, $year, $month, $day, $error}};
 }};  // Ends replace_date()
   
 
@@ -139,6 +139,8 @@ function create_date_part({{type, date_id}}) {{
   // voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
   var $field = $('<input class="form-control al_split_date ' + type + ' ' + date_id + '" type="number" min="1" inputmode="numeric">');
   $field.attr( 'id', id );
+  // '_ignore' prevents the field from being submitted and causing an error
+  // TODO: Should id be the same?
   $field.attr( 'name', '_ignore_' + id );
   $col.append($field);
   
@@ -160,7 +162,9 @@ function create_month(date_id) {{
   
   var $field = $('<select class="form-select al_split_date month ' + date_id + '">');  // unique
   $field.attr( 'id', id );
-  //$field.attr( 'name', '_ignore_' + id );
+  // '_ignore' prevents the field from being submitted and causing an error
+  // TODO: Should id be the same?
+  $field.attr( 'name', '_ignore_' + id );
   add_months($field);  // unique
   
   $col.append($field);
@@ -213,16 +217,24 @@ function use_previous_values({{$date, $al_parent}}) {{
   }}  // ends if original date has val
 }};  // Ends use_previous_values()
   
+  
+function add_error($al_parent) {{
+  /** Add element that will contain all errors. */
+  let $date = get_$date($al_parent);
+  let $error = $('<div id="al_' + $date.attr('id') + '_error" class="da-has-error al_split_date_error"></div>');
+  $al_parent.append($error);
+  return $error;
+}};  // Ends add_error()
+  
 
 // Update value of original input when values change.
-function update_original_date($date, $al_parent) {{
+function update_original_date({{$date, $al_parent}}) {{
   var data = get_date_data($al_parent);
   var val = data.month + '/' + data.day + '/' + data.year;
   if ( val === '//' ) {{
     val = '';
   }}
   $date.val( val );
-  $date.trigger('change');
 }};  // Ends updateDate()
   
   
@@ -265,6 +277,7 @@ function get_date_data($element) {{
 
   
 function get_$date(element) {{
+  // TODO: Try $(element).closest()...
   let $date = $(get_$parent(element).closest('.dafieldpart').children('input')[0]);
   return $date;
 }};  // Ends get_$date()
@@ -280,9 +293,60 @@ function get_$parent(element) {{
 }};  // Ends get_$parent()
   
   
+// ==================================================
+// ==================================================
+// === Validation options ===
+// ==================================================
+// ==================================================
+  
+function set_up_validation($al_parent) {{
+  place_errors();
+}};  // Ends set_up_validation()
+
+  
+function place_errors() {{
+  // Add this error validation to the existing error validation
+  var original_error_placement = $('#daform').validate().settings.errorPlacement;
+  var error_placement = function(error, element) {{
+    
+    var $al_parent = get_$parent(element);
+    // If this isn't an AL date, use the original behavior
+    if (!$al_parent[0]) {{
+      // console.log('not date part');
+      original_error_placement(error, element);
+      return;
+    }}
+
+    $(error).appendTo($al_parent.find('.al_split_date_error')[0]);
+    // TODO: Remove `aria-describedby` when field is valid
+    $(element).attr('aria-describedby', error.id);
+    // show_only_last_error(element);  // Hopefully won't need this
+  }};  // Ends error_placement()
+  
+  // Override the previous errorPlacement
+  var validator = $("#daform").data('validator');
+  validator.settings.errorPlacement = error_placement;
+}};  // Ends place_errors()
+  
+  
+// ==================================================
+// ==================================================
+// === Validation methods ===
+// ==================================================
+// ==================================================
+  
+  
 }} catch (error) {{
   console.error('Error in AL date CusotmDataTypes', error);
 }}
+
+
+
+// ====================================
+// ====================================
+// ====================================
+// for codepen
+//$(document).trigger('daPageLoad');
 
 """
 
