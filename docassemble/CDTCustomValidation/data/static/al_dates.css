@@ -35,7 +35,7 @@ to just neutralize it instead. It's just a different kind of war. */
 }
 
 /* This is for when IE is completely unused or implements focus-within */
-.al_split_date_parent.al_invalid:focus-within .al_split_date,
+/*.al_split_date_parent.al_invalid:focus-within .al_split_date,
 .al_split_date_parent:focus-within .al_split_date.al_invalid {
   padding-right: calc(1.5em + 0.75rem);
   background-repeat: no-repeat;

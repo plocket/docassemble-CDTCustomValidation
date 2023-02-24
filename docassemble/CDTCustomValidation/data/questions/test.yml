@@ -52,7 +52,8 @@ fields:
     almin: 1111-05-05
     alminmessage: "Too early 3"
     almax: 2222-02-05
-    #almaxmessage: "Too late 3"
+    alcrossingboundsmessage: Funky day
+    almaxmessage: "Too late 3"
     validation messages:
       required: Required!
     default: 1/1/2000
@@ -62,7 +63,7 @@ fields:
     almin: 1111-02-02
     #alminmessage: "Too early b-day"
     #almax: 2020-02-06
-    almaxmessage: "Too late b-day"
+    #almaxmessage: "Too late b-day"
 ---
 mandatory: True
 question: That's it

@@ -11,15 +11,16 @@ from typing import Optional
 import re
 
 js_text = """\
+//$('#daform').validate();  // for codepen
+
 console.log('---- starting custom date 2');
-// for codepen
-//$('#daform').validate();
 
 // This is an adaptation of Jonathan Pyle's datereplace.js
 
 /*
 Notes:
 - Rule names must have no dashes.
+- year input of "1" counts as a date of 2001 and "11" is 2011
 */
 
 /* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
@@ -62,6 +63,8 @@ possibly detect valid on change, detect invalid on blur.
 /*
 TODO: prioritize validation
 TODO: Handle un-required partial dates
+TODO: Provide attrib for default message that will appear before
+      our defaults if no more specific message is given.
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -283,6 +286,16 @@ function get_date_data($element) {{
   }};
   return date_data;
 }};  // Ends get_date_data()
+  
+  
+function is_birthdate(element) {{
+  /** If the element is part of a al birthdate field, returns true, otherwise false.
+  * 
+  * @params {{Node}} element A split date part.
+  */
+  let birthdate = get_$parent(element).parent().find('.daALBirthDateTestValidation2')[0];
+  return Boolean(birthdate);
+}};  // Ends is_birthdate()
 
   
 function get_$date(element) {{
@@ -299,6 +312,8 @@ function get_$parent(element) {{
   // `.closest()` will get the element itself if appropriate
   return $(element).closest('.al_split_date_parent');
 }};  // Ends get_$parent()
+  
+  
   
   
 // ==================================================
@@ -346,9 +361,25 @@ function add_rules(element) {{
   * 
   * @param {{HTML Node}} element A date part node. */
   let rules = {{
-    'almin': {{
+    // TODO: try returning value of 'day' for crossing bounds to get a better
+    // error message.
+    _alcrossingbounds: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
+    almin: {{
       depends: function(element) {{
         return get_$date(element).attr('data-almin') !== undefined;
+        // TODO: try below to get better message about being too early or too late
+        //return get_$date(element).attr('data-almin') || false;
+      }}
+    }},
+    almax: {{
+      depends: function(element) {{
+        // Birthdates always have a max value
+        // TODO: Should the dev still be able to override? 
+        if ( is_birthdate(element) ) {{
+          return true;
+        }}
+        // Otherwise, check the element itself
+        return get_$date(element).attr('data-almax') !== undefined;
       }}
     }},
   }};  // ends rules
@@ -361,11 +392,19 @@ function add_messages(element) {{
   /** Add all messages for rules for a given element.
   * 
   * @param {{HTML Node}} element A date part node. */
+  
+  var default_max_message = 'This date is too late.';
+  // Birthdays have a different default max message
+  if (is_birthdate(element)) {{
+    default_max_message = 'A <strong>birthdate</strong> must be in the past.';
+  }}
+  
   let messages = {{
     // Note: Cannot be functions
-    messages: 
-    {{
-      'almin': get_$date(element).attr('data-alminmessage') || 'This date is too early.',
+    messages: {{
+      _alcrossingbounds: get_$date(element).attr('data-alcrossingboundsmessage') || 'There are not that many days in the month.',
+      almin: get_$date(element).attr('data-alminmessage') || 'This date is too early.',
+      almax: get_$date(element).attr('data-almaxmessage') || 'This date is too late.',
     }},
   }};  // ends rules
   $(element).rules('add', messages);
@@ -399,6 +438,67 @@ $.validator.addMethod('almin', function(value, element, params) {{
 }});  // ends validate 'almin'
   
   
+$.validator.addMethod('almax', function(value, element, params) {{
+  /** Returns true if full date is <= max date. Also makes sure
+  *   all fields get highlighted when invalid. */
+  if (!date_is_ready_for_min_max(element)) {{
+    return true;
+  }}
+
+  var data = get_date_data(element);
+  var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
+  if (isNaN(date_val)) {{
+    return true;
+  }}
+
+  // TODO: Catch invalid almax attr values? Log in console?
+  var max_attr = get_$date(element).attr('data-almax');
+  var date_max = new Date(max_attr);
+  if ( isNaN(date_max) && is_birthdate(element)) {{
+    date_max = new Date(Date.now());
+  }}
+  let is_valid = date_val <= date_max;
+  // handle_parent_validation({{ element, is_valid }});
+
+  return is_valid;
+}});  // ends validate 'almax'
+  
+  
+// TODO: Is this an individual field validation or a whole-field validation?
+$.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
+  /** Returns false if full input values cannot be converted to a
+  *   matching Date object. E.g. 12/32/2000 will be converted to 1/1/2001.
+  *   HTML doesn't do this check itself.
+  *   Right now only day inputs can create mismatching dates.
+  * 
+  *   Ensure invalid field (day field) is highlighted.
+  */
+  let validity_vals = which_inputs_dont_cross_bounds(element);
+
+  let day_is_valid = validity_vals.day === true;
+  // Display invalid highlighting on day elem if needed
+  if (!day_is_valid) {{
+    let $al_parent = get_$parent(element);
+    let day_elem = $al_parent.find('.day')[0];
+    // handle_part_validation({{
+    //   element: day_elem,
+    //   is_valid: day_is_valid,
+    // }});
+  }}
+
+  // For this particular invalidation, avoid highlighting anything
+  // other than the day element
+  let is_valid = true;
+  if ($(element).hasClass('day')) {{
+    is_valid = day_is_valid;
+  }}
+
+  // TODO: How do we get the error message to appear after another
+  // field is marked as valid? Keep the error around and reveal it?
+  return is_valid;
+}});  // ends validate '_alcrossingbounds'
+  
+  
 // ==================================================
 // ==================================================
 // === Calculations ===
@@ -406,7 +506,7 @@ $.validator.addMethod('almin', function(value, element, params) {{
 // ==================================================
 
 function date_is_ready_for_min_max(element) {{
-  /** Return true if date is ready to be evaluated for min/max
+  /** Return true if date input is ready to be evaluated for min/max
   *   date value invalidation.
   */
   var data = get_date_data(element);
@@ -421,11 +521,110 @@ function date_is_ready_for_min_max(element) {{
     return false;
   }}
   
-  // TODO: Don't show this error if the input values don't create
-  // the expected date (e.g. date is 45th of Jan)
+  // // TODO: Don't show this error if the input values don't create
+  // // the expected date (e.g. date is 45th of Jan)
+  // let validity_vals = which_inputs_dont_cross_bounds(element);
+  // if (validity_vals.day === false) {{
+  //   return false;
+  // }}
   
   return true;
 }};  // Ends date_is_not_ready_for_min_max()
+  
+
+// TODO: get rid of double negatives
+function which_inputs_dont_cross_bounds(element) {{
+  /** Given a date part element, returns a {{year, month, day}} object.
+  *   Each property is true if the input is valid and false if the input
+  *   is invalid. If any inputs are empty, all properties will be true.
+  *   Thus the dropdown input month will always be valid
+  *
+  * What would make a year or month invalid? Negative numbers? That's taken care of elsewhere.
+  *    If only a day can be invalid, this can be made more simple.
+  *
+  * Inspired by https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
+  * 
+  * @param element {{HTMLNode}} An input in the al split date picker
+  * 
+  * @examples:
+  * 10//2000  // {{year: true, month: true, day: true}}
+  * 10/10/2000  // {{year: true, month: true, day: true}}
+  * 10/32/2000  // {{year: true, month: true, day: false}}
+  * Only day can be invalid in this way?
+  * 12/42/2000  // {{year: true, month: true, day: false}}? {{year: false, month: true, day: false}}?
+  * 
+  * @returns {{year: bool, month: bool, day: bool}} Date parts that are
+  *   valid will have a value of `true`
+  */
+  var input_status = {{
+    year: true, month: true, day: true,
+  }};
+
+  var data = get_date_data(element);
+  // Don't invalidate if the date is only partly filled. Empty input fields
+  // should take care of themselves
+  // if (data.year == '' || data.month == '' || data.day === '') {{
+  if (data.day === '') {{
+    return input_status;
+  }}
+
+  if (parseInt(data.day) > 31) {{
+    input_status.day = false;
+    return input_status;
+  }}
+
+  // Ensure a valid date to check against, so
+  // day can always be validated. Is this appropriate?
+  if (data.year === '') {{data.year = 2000;}}
+  if (data.month === '') {{data.month = 1;}}
+
+  const dateStringParts = [data.year, data.month, data.day];
+  const [year, month, day] = dateStringParts.map((str) => {{
+    let value;
+    const parsed = parseInt(str, 10);
+    if (!Number.isNaN(parsed)) value = parsed;
+    return value;
+  }});
+  // Would month or year ever be null?
+  input_status.year = year !== null;
+  input_status.month = month !== null;
+  input_status.day = day !== null;
+
+  // TODO: Show failing max day anytime it exists. don't wait for all input
+  if (month && day && year != null) {{
+    const checkDate = setDate({{
+      year: year,
+      month: month - 1,
+      date: day
+    }});
+
+    // What non-'' year could cause an invalid date?
+    // If month as a value, it's always valid (dropdown)
+    if (
+      checkDate.getFullYear() !== year ||
+      checkDate.getMonth() !== (month - 1) ||
+      checkDate.getDate() !== day
+    ) {{
+      input_status.day = false;
+    }}
+  }}
+
+  return input_status;
+}};  // Ends which_inputs_dont_cross_bounds()
+
+/**
+ * Set date from month day year
+ *
+ * @param {{number}} year the year to set
+ * @param {{number}} month the month to set (zero-indexed)
+ * @param {{number}} date the date to set
+ * @returns {{Date}} the set date
+ */
+function setDate({{year, month, date}}) {{
+  const newDate = new Date(0);
+  newDate.setFullYear(year, month, date);
+  return newDate;
+}};
 
 
 // ====================================
@@ -478,7 +677,7 @@ class ALThreePartsDateTestValidation2(CustomDataType):
     javascript = js_text.format(month=word("Month"), day=word("Day"), year=word("Year"))
     jq_message = word("Answer with a valid date")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage']
 
     @classmethod
     def validate(cls, item: str):
@@ -520,7 +719,7 @@ class ALBirthDateTestValidation2(ALThreePartsDateTestValidation2):
     ).replace("ALThreePartsDateTestValidation2", "ALBirthDateTestValidation2")
     jq_message = word("Answer with a valid date of birth")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage']
 
     @classmethod
     def validate(cls, item: str):
