@@ -466,23 +466,30 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   *   Right now only day inputs can create mismatching dates.
   * 
   *   Ensure invalid field (day field) is highlighted.
+  *   
+  *   Note: We need to validate each field for this. If they put Jan 30 and
+  *   then change month to Feb, we need to show the error then.
   */
   
+  // Only validate day for this, but validate it any time any of
+  // the split date parts are checked
+  if (!$(element).hasClass('day')) {{
+    $(get_$parent(element).find('input.day')[0]).valid();
+    return true;
+  }}
+  
   let validity_vals = which_inputs_dont_cross_bounds(element);
-
   let day_is_valid = validity_vals.day === true;
   // Display invalid highlighting on day elem if needed
   if (!day_is_valid) {{
-    let $al_parent = get_$parent(element);
-    let day_elem = $al_parent.find('.day')[0];
+    // TODO: Only highlight day
+    // TODO: Get rid of other fields' cross bounds validation
+    // messages and highlighting if needed.
+    // manage_bounds_highlighting({{
+    //   element: element,
+    //   is_valid: day_is_valid,
+    // }});
   }}
-  
-  // TODO: Only highlight day
-  // TODO: Get rid of other fields' cross bounds validation
-  // handle_bounds_validation({{
-  //   element: day_elem,
-  //   is_valid: day_is_valid,
-  // }});
 
   return day_is_valid;
   
@@ -500,17 +507,17 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   
   // If the date is only partly filled, we can't give a useful message
   // without a heck of  a lot of work, so give a generalized cross bounds
-  // mesage. Other is a stretch goal.
+  // default message. Other is a stretch goal.
   let data = get_date_data(field);
   if (data.year == '' || data.month == '') {{
     return `No month has ${{input_date}} days.`;
   }}
   
-  // Otherwise we can give the full message
+  // Otherwise we can give the full default message
   let input_year = get_$parent(field).find('.year').val();
   let converted_year = (new Date(`1/1/${{input_year}}`)).getFullYear();
   let input_month = get_$parent(field).find('.month option:selected').text();
-  return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days`;
+  return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days.`;
 }});  // ends validate '_alcrossingbounds'
   
   
