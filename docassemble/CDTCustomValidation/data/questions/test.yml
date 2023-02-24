@@ -50,10 +50,11 @@ fields:
     datatype: ALThreePartsDateTestValidation2
     required: False
     almin: 1111-05-05
-    alminmessage: "Too early 3"
+    #alminmessage: Too early 3-day
+    aldefaultmessage: Default 3-day
     almax: 2222-02-05
-    alcrossingboundsmessage: Funky day
-    almaxmessage: "Too late 3"
+    alcrossingboundsmessage: Funky day 3-day
+    almaxmessage: Too late 3-day
     validation messages:
       required: Required!
     default: 1/1/2000

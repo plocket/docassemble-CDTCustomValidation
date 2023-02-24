@@ -65,6 +65,7 @@ TODO: prioritize validation
 TODO: Handle un-required partial dates
 TODO: Provide attrib for default message that will appear before
       our defaults if no more specific message is given.
+TODO: Discuss requiring a 4-digit year
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -399,12 +400,13 @@ function add_messages(element) {{
     default_max_message = 'A <strong>birthdate</strong> must be in the past.';
   }}
   
+  let $elem = get_$date(element);
   let messages = {{
     // Note: Cannot be functions
     messages: {{
-      _alcrossingbounds: get_$date(element).attr('data-alcrossingboundsmessage') || 'There are not that many days in the month.',
-      almin: get_$date(element).attr('data-alminmessage') || 'This date is too early.',
-      almax: get_$date(element).attr('data-almaxmessage') || 'This date is too late.',
+      _alcrossingbounds: $elem.attr('data-alcrossingboundsmessage') || $elem.attr('data-aldefaultmessage') || 'There are not that many days in the month.',
+      almin: $elem.attr('data-alminmessage') || $elem.attr('data-aldefaultmessage') || 'This date is too early.',
+      almax: $elem.attr('data-almaxmessage') || $elem.attr('data-aldefaultmessage') || 'This date is too late.',
     }},
   }};  // ends rules
   $(element).rules('add', messages);
@@ -677,7 +679,7 @@ class ALThreePartsDateTestValidation2(CustomDataType):
     javascript = js_text.format(month=word("Month"), day=word("Day"), year=word("Year"))
     jq_message = word("Answer with a valid date")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'aldefaultmessage']
 
     @classmethod
     def validate(cls, item: str):
@@ -719,7 +721,7 @@ class ALBirthDateTestValidation2(ALThreePartsDateTestValidation2):
     ).replace("ALThreePartsDateTestValidation2", "ALBirthDateTestValidation2")
     jq_message = word("Answer with a valid date of birth")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'aldefaultmessage']
 
     @classmethod
     def validate(cls, item: str):
