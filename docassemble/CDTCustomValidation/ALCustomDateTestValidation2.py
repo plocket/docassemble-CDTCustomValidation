@@ -66,6 +66,7 @@ TODO: Handle un-required partial dates
 TODO: Provide attrib for default message that will appear before
       our defaults if no more specific message is given.
 TODO: Discuss requiring a 4-digit year
+TODO: Change "element" to "field" where appropriate
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -265,7 +266,6 @@ function is_required(element) {{
   */
   let $date = get_$date(element);
   let is_required = $date.closest('.da-form-group').hasClass('darequired');
-  // console.log(is_required, $date);
   return is_required;
 }}  // Ends is_required()
   
@@ -327,7 +327,6 @@ function set_up_validation($al_parent) {{
   place_errors();
   $al_parent.find('.al_split_date').each(function (index, element) {{
     add_rules(element);
-    add_messages(element);
   }});
 }};  // Ends set_up_validation()
 
@@ -340,7 +339,6 @@ function place_errors() {{
     let $al_parent = get_$parent(element);
     // If this isn't an AL date, use the original behavior
     if (!$al_parent[0]) {{
-      // console.log('not date part');
       original_error_placement(error, element);
       return;
     }}
@@ -365,52 +363,22 @@ function add_rules(element) {{
     // TODO: try returning value of 'day' for crossing bounds to get a better
     // error message.
     _alcrossingbounds: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
-    almin: {{
-      depends: function(element) {{
-        return get_$date(element).attr('data-almin') !== undefined;
-        // TODO: try below to get better message about being too early or too late
-        //return get_$date(element).attr('data-almin') || false;
-      }}
-    }},
+    almin: get_$date(element).attr('data-almin') || false,
     almax: {{
       depends: function(element) {{
         // Birthdates always have a max value
-        // TODO: Should the dev still be able to override? 
+        // TODO: Should the dev still be able to override?
         if ( is_birthdate(element) ) {{
           return true;
         }}
         // Otherwise, check the element itself
-        return get_$date(element).attr('data-almax') !== undefined;
+        return get_$date(element).attr('data-almax') || false;
       }}
     }},
   }};  // ends rules
   
   $(element).rules('add', rules);
 }};  // Ends add_rules()
-  
-  
-function add_messages(element) {{
-  /** Add all messages for rules for a given element.
-  * 
-  * @param {{HTML Node}} element A date part node. */
-  
-  var default_max_message = 'This date is too late.';
-  // Birthdays have a different default max message
-  if (is_birthdate(element)) {{
-    default_max_message = 'A <strong>birthdate</strong> must be in the past.';
-  }}
-  
-  let $elem = get_$date(element);
-  let messages = {{
-    // Note: Cannot be functions
-    messages: {{
-      _alcrossingbounds: $elem.attr('data-alcrossingboundsmessage') || $elem.attr('data-aldefaultmessage') || 'There are not that many days in the month.',
-      almin: $elem.attr('data-alminmessage') || $elem.attr('data-aldefaultmessage') || 'This date is too early.',
-      almax: $elem.attr('data-almaxmessage') || $elem.attr('data-aldefaultmessage') || 'This date is too late.',
-    }},
-  }};  // ends rules
-  $(element).rules('add', messages);
-}};  // Ends add_messages()
   
   
 // ==================================================
@@ -437,6 +405,14 @@ $.validator.addMethod('almin', function(value, element, params) {{
   // handle_parent_validation({{ element, is_valid }});
   
   return is_valid;
+  
+}}, function al_min_message (validity, field) {{
+  /** Returns the string of the invalidation message. */
+  return (
+    get_$date(field).attr('data-alminmessage')
+    || get_$date(field).attr('data-aldefaultmessage')
+    || `The date needs to be on or after ${{ get_$date(field).attr('data-almin') }}.`
+  );
 }});  // ends validate 'almin'
   
   
@@ -463,10 +439,26 @@ $.validator.addMethod('almax', function(value, element, params) {{
   // handle_parent_validation({{ element, is_valid }});
 
   return is_valid;
+  
+}}, function al_max_message (validity, field) {{
+  /** Returns the string of the invalidation message. */
+  
+  var default_max_message = `The date needs to be on or before ${{ get_$date(field).attr('data-almax') }}.`;
+  // Birthdays have a different default max message
+  if (!get_$date(field).attr('data-almax') && is_birthdate(field)) {{
+    default_max_message = 'A <strong>birthdate</strong> must be in the past.';
+  }}
+  
+  return (
+    get_$date(field).attr('data-almaxmessage')
+    || get_$date(field).attr('data-aldefaultmessage')
+    || default_max_message
+  );
 }});  // ends validate 'almax'
   
   
-// TODO: Is this an individual field validation or a whole-field validation?
+// --- Whole year validation ---
+  
 $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   /** Returns false if full input values cannot be converted to a
   *   matching Date object. E.g. 12/32/2000 will be converted to 1/1/2001.
@@ -475,6 +467,7 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   * 
   *   Ensure invalid field (day field) is highlighted.
   */
+  
   let validity_vals = which_inputs_dont_cross_bounds(element);
 
   let day_is_valid = validity_vals.day === true;
@@ -482,22 +475,42 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   if (!day_is_valid) {{
     let $al_parent = get_$parent(element);
     let day_elem = $al_parent.find('.day')[0];
-    // handle_part_validation({{
-    //   element: day_elem,
-    //   is_valid: day_is_valid,
-    // }});
   }}
+  
+  // TODO: Only highlight day
+  // TODO: Get rid of other fields' cross bounds validation
+  // handle_bounds_validation({{
+  //   element: day_elem,
+  //   is_valid: day_is_valid,
+  // }});
 
-  // For this particular invalidation, avoid highlighting anything
-  // other than the day element
-  let is_valid = true;
-  if ($(element).hasClass('day')) {{
-    is_valid = day_is_valid;
+  return day_is_valid;
+  
+}}, function _al_crossing_bounds_message (validity, field) {{
+  /** Returns the string of the invalidation message. */
+  
+  // Always return a custom message first
+  let custom_msg = get_$date(field).attr('data-alcrossingboundsmessage')
+                   || get_$date(field).attr('data-aldefaultmessage');
+  if (custom_msg) {{
+    return custom_msg;
   }}
-
-  // TODO: How do we get the error message to appear after another
-  // field is marked as valid? Keep the error around and reveal it?
-  return is_valid;
+  
+  let input_date = get_$parent(field).find('.day').val();
+  
+  // If the date is only partly filled, we can't give a useful message
+  // without a heck of  a lot of work, so give a generalized cross bounds
+  // mesage. Other is a stretch goal.
+  let data = get_date_data(field);
+  if (data.year == '' || data.month == '') {{
+    return `No month has ${{input_date}} days.`;
+  }}
+  
+  // Otherwise we can give the full message
+  let input_year = get_$parent(field).find('.year').val();
+  let converted_year = (new Date(`1/1/${{input_year}}`)).getFullYear();
+  let input_month = get_$parent(field).find('.month option:selected').text();
+  return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days`;
 }});  // ends validate '_alcrossingbounds'
   
   
