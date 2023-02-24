@@ -144,19 +144,20 @@ function create_date_part({{type, date_id}}) {{
   */
   var $col = $('<div class="col">');
   var id = date_id + '_' + type;
+  let name =  '_ignore_' + id;
   
   var $label = $('<label>{{' + type + '}}</label>');
-  $label.attr( 'for', id );
+  $label.attr( 'for', name );
   $col.append($label);
   
   // `inputmode` ("numeric") not fully supported yet (02/09/2023). When it is, remove type number
   // Reconsider type `number`, but avoid attr `pattern` - 
   // voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
   var $field = $('<input class="form-control al_split_date ' + type + ' ' + date_id + '" type="number" min="1" inputmode="numeric">');
-  $field.attr( 'id', id );
+  $field.attr('id', id);
   // '_ignore' prevents the field from being submitted and causing an error
   // TODO: Should id be the same?
-  $field.attr( 'name', '_ignore_' + id );
+  $field.attr('name', name);
   $col.append($field);
   
   return $field;
@@ -170,16 +171,17 @@ function create_month(date_id) {{
   */
   var $col = $('<div class="col">');
   
-  var id = date_id + '_month';
-  var $label = $('<label>{{month}}</label>');
-  $label.attr( 'for', id );
+  let id = date_id + '_month';
+  let name =  '_ignore_' + id;
+  let $label = $('<label>{{month}}</label>');
+  $label.attr( 'for', name );
   $col.append($label);
   
   var $field = $('<select class="form-select al_split_date month ' + date_id + '">');  // unique
-  $field.attr( 'id', id );
+  $field.attr('id', id);
   // '_ignore' prevents the field from being submitted and causing an error
   // TODO: Should id be the same?
-  $field.attr( 'name', '_ignore_' + id );
+  $field.attr('name', name);
   add_months($field);  // unique
   
   $col.append($field);
@@ -330,17 +332,23 @@ function set_up_validation($al_parent) {{
   }});
 }};  // Ends set_up_validation()
 
-  
+// errorPlacement seems to only be called once for each field
+// showError is being called on each validation, but has useless args:
+// errorMap ({{field_name: msg str}}), errorList: ([{{element: field, message: str, method: rule}}]),
+// but not the error element itself, which makes it unusable for placement. Also, empty when
+// valid and sometimes seems to be firing invalid spuriously
 function place_errors() {{
-  // Add this error validation to the existing error validation
+  // Set up where to put the errors (for our fields) when validation runs.
+  // Only runs once per field.
   let original_error_placement = $('#daform').validate().settings.errorPlacement;
-  let error_placement = function(error, element) {{
-    
+  
+  let validator = $("#daform").data('validator');
+  validator.settings.errorPlacement = function(error, element) {{
     let $al_parent = get_$parent(element);
+    
     // If this isn't an AL date, use the original behavior
-    if (!$al_parent[0]) {{
+    if (!$al_parent[0] && original_error_placement !== undefined) {{
       original_error_placement(error, element);
-      return;
     }}
 
     $(error).appendTo($al_parent.find('.al_split_date_error')[0]);
@@ -349,9 +357,7 @@ function place_errors() {{
     // show_only_last_error(element);  // Hopefully won't need this
   }};  // Ends error_placement()
   
-  // Override the previous errorPlacement
-  let validator = $("#daform").data('validator');
-  validator.settings.errorPlacement = error_placement;
+  
 }};  // Ends place_errors()
   
 
@@ -372,7 +378,7 @@ function add_rules(element) {{
           return true;
         }}
         // Otherwise, check the element itself
-        return get_$date(element).attr('data-almax') || false;
+        return get_$date(element).attr('data-almax') !== undefined;
       }}
     }},
   }};  // ends rules
@@ -473,10 +479,6 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   
   // Only validate day for this, but validate it any time any of
   // the split date parts are checked
-  if (!$(element).hasClass('day')) {{
-    $(get_$parent(element).find('input.day')[0]).valid();
-    return true;
-  }}
   
   let validity_vals = which_inputs_dont_cross_bounds(element);
   let day_is_valid = validity_vals.day === true;
@@ -491,7 +493,14 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
     // }});
   }}
 
-  return day_is_valid;
+  if (!day_is_valid) {{
+    if (!$(element).hasClass('day')) {{
+      $(get_$parent(element).find('input.day')[0]).valid();
+      return true;
+    }}
+  }} else {{
+    return true;
+  }}
   
 }}, function _al_crossing_bounds_message (validity, field) {{
   /** Returns the string of the invalidation message. */
