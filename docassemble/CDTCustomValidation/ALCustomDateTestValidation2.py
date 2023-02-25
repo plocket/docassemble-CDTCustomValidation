@@ -11,19 +11,18 @@ from typing import Optional
 import re
 
 js_text = """\
-//$('#daform').validate();  // for codepen
+//$('#daform').validate({{ errorClass: 'is-invalid' }});  // for codepen
 
 console.log('---- starting custom date 2');
 
 // This is an adaptation of Jonathan Pyle's datereplace.js
 
 /*
-Notes:
-- Rule names must have no dashes.
+Notes to keep around:
+- Rule names must avoid dashes.
 - year input of "1" counts as a date of 2001 and "11" is 2011
-*/
-
-/* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
+*
+* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
 *  2. information that cannot be correct (for example, the number ‘13’ in the month field)
 *     (TODO: maybe less than 4 digits in year counts? Maybe it's #3 priority?)
@@ -62,11 +61,22 @@ possibly detect valid on change, detect invalid on blur.
 
 /*
 TODO: prioritize validation
-TODO: Handle un-required partial dates
-TODO: Provide attrib for default message that will appear before
+TODO: Change var name "element" to "field" where appropriate
+TODO: Put `aria-describedby` on field somewhere somehow
+TODO: Bug:
+  click to year
+  Enter somethihng
+  set Day to 35
+  click out
+  fix day
+  all errors disappear
+
+DONE:
+  - Handle un-required partial dates on submission (was already done in our da customdatatype)
+  - Provide attrib for default message that will appear before
       our defaults if no more specific message is given.
-TODO: Discuss requiring a 4-digit year
-TODO: Change "element" to "field" where appropriate
+  - [Answer: We do want to require a 4-digit year] Discuss requiring a 4-digit year
+  - MVP highlight full element and none of the individual elements (with exclamation)
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -81,8 +91,8 @@ $(document).on('daPageLoad', function(){{
 }});  // ends on da page load
 
   
-function do_everything(element) {{
-  let $date = $(element);
+function do_everything(original_element) {{
+  let $date = $(original_element);
   let {{$al_parent, $year, $month, $day, $error}} = replace_date($date);
   set_up_validation($al_parent);
 }};
@@ -144,6 +154,8 @@ function create_date_part({{type, date_id}}) {{
   */
   var $col = $('<div class="col">');
   var id = date_id + '_' + type;
+  // '_ignore' prevents the field from being submitted and causing an error
+  // TODO: Should id be the same?
   let name =  '_ignore_' + id;
   
   var $label = $('<label>{{' + type + '}}</label>');
@@ -153,10 +165,11 @@ function create_date_part({{type, date_id}}) {{
   // `inputmode` ("numeric") not fully supported yet (02/09/2023). When it is, remove type number
   // Reconsider type `number`, but avoid attr `pattern` - 
   // voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
+  
+  // aria-describedby is ok to have, even when the date-part error is
+  // not present or is display: none
   var $field = $('<input class="form-control al_split_date ' + type + ' ' + date_id + '" type="number" min="1" inputmode="numeric">');
   $field.attr('id', id);
-  // '_ignore' prevents the field from being submitted and causing an error
-  // TODO: Should id be the same?
   $field.attr('name', name);
   $col.append($field);
   
@@ -172,15 +185,22 @@ function create_month(date_id) {{
   var $col = $('<div class="col">');
   
   let id = date_id + '_month';
+  // '_ignore' prevents the field from being submitted and causing an error
+  // TODO: Should id be the same?
   let name =  '_ignore_' + id;
+  
   let $label = $('<label>{{month}}</label>');
   $label.attr( 'for', name );
   $col.append($label);
   
+  // aria-describedby is ok to have, even when the date-part error is
+  // not present or is display: none
+  // `for` is label of field
+  // `aria-describedby` is supplemental info
+  // https://developer.mozilla.org/en-US/docs/Web/CSS/display#display_none
+  // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Attributes/aria-hidden
   var $field = $('<select class="form-select al_split_date month ' + date_id + '">');  // unique
   $field.attr('id', id);
-  // '_ignore' prevents the field from being submitted and causing an error
-  // TODO: Should id be the same?
   $field.attr('name', name);
   add_months($field);  // unique
   
@@ -262,7 +282,7 @@ function update_original_date({{$date, $al_parent}}) {{
 // ==================================================
 
 function is_required(element) {{
-  /*** Return true if date value is required, other wise return false.
+  /*** Return true if date value is required, otherwise return false.
   * 
   * @param {{Node}} element AL split date part.
   */
@@ -317,8 +337,6 @@ function get_$parent(element) {{
 }};  // Ends get_$parent()
   
   
-  
-  
 // ==================================================
 // ==================================================
 // === Validation ===
@@ -326,45 +344,167 @@ function get_$parent(element) {{
 // ==================================================
   
 function set_up_validation($al_parent) {{
-  place_errors();
+  set_up_errorPlacement();
+  set_up_highlight();
+  set_up_showErrors($al_parent);
+  // TODO: remove when done testing plugin lifecycle
+  test_plugin_lifecycle();
   $al_parent.find('.al_split_date').each(function (index, element) {{
     add_rules(element);
   }});
 }};  // Ends set_up_validation()
 
-// errorPlacement seems to only be called once for each field
-// showError is being called on each validation, but has useless args:
-// errorMap ({{field_name: msg str}}), errorList: ([{{element: field, message: str, method: rule}}]),
-// but not the error element itself, which makes it unusable for placement. Also, empty when
-// valid and sometimes seems to be firing invalid spuriously
-function place_errors() {{
-  // Set up where to put the errors (for our fields) when validation runs.
-  // Only runs once per field.
-  let original_error_placement = $('#daform').validate().settings.errorPlacement;
   
+function set_up_errorPlacement() {{
+  /** Sometimes override errorPlacement */
   let validator = $("#daform").data('validator');
-  validator.settings.errorPlacement = function(error, element) {{
-    let $al_parent = get_$parent(element);
+  let original_error_placement = validator.settings.errorPlacement;
+  validator.settings.errorPlacement = function al_errorPlacement(error, field) {{
+    /** Put all errors in one spot at the bottom of the parent.
+    *   Only runs once per field.
+    */
+    console.log('======== errorPlacement =========');
     
+    // TODO: check in da. Not documented in plugin.
+    console.log('typeof defaultErrorPlacement:', typeof validator.defaultErrorPlacement);
+    // if( validator.defaultErrorPlacement ) {{
+    //   validator.defaultErrorPlacement(error, field)
+    // }}
+    
+    let $al_parent = get_$parent(field);
     // If this isn't an AL date, use the original behavior
     if (!$al_parent[0] && original_error_placement !== undefined) {{
-      original_error_placement(error, element);
+      original_error_placement(error, field);
     }}
 
     $(error).appendTo($al_parent.find('.al_split_date_error')[0]);
-    // TODO: Remove `aria-describedby` when field is valid
-    $(element).attr('aria-describedby', error.id);
-    // show_only_last_error(element);  // Hopefully won't need this
-  }};  // Ends error_placement()
+  }};  // Ends al_errorPlacement()
+  
+}};  // Ends set_up_errorPlacement()
+  
+function set_up_highlight() {{
+  /** For our date elements, override pre-existing highlight method. */
+  let validator = $("#daform").data('validator');
+  let original_highlight = validator.settings.highlight;
+  validator.settings.highlight = function al_highlight(field, errorClass, validClass) {{
+    /** Highlight parent instead of individual fields. MVP  */
+    
+    console.log('====== highlight ======');
+    
+    // TODO: check in da. Not documented in plugin.
+    console.log('typeof defaultHighlight:', typeof validator.defaultHighlight);
+    // if( validator.defaultHighlight ) {{
+    //   validator.defaultHighlight(field, errorClass, validClass)
+    // }}
+    
+    let $al_parent = get_$parent(field);
+    // If this isn't an AL date, use the original behavior
+    if (!$al_parent[0] && original_highlight !== undefined) {{
+      original_highlight(field, errorClass, validClass);
+    }}
+    
+    $al_parent.addClass('al_invalid');
+    // Avoid highlighting individual elements
+    $al_parent.find('.al_split_date').each(function(index, field) {{
+      $(field).removeClass('is-invalid');  // Just a Bootstrap class
+    }});
+    
+  }};  // Ends al_highlight()
+  
+}};  // Ends set_up_highlight()
   
   
-}};  // Ends place_errors()
+function set_up_showErrors($al_parent) {{
+  /** For our date elements, add to pre-existing showErrors method.
+  *   Note: When there are no errors, `showError` has no way to get the parent.
+  * 
+  * @param {{jQuery obj}} $al_parent The parent we created for our date fields. */
+  
+  let validator = $("#daform").data('validator');
+  let original_showErrors = validator.settings.showErrors;
+  validator.settings.showErrors = function al_showErrors(errorMap, errorList) {{
+    /** Show only one error at a time and hide irrelevant errors.
+    *   TODO: Try moving to `.success()`. Called before this, but maybe will
+    *   still work, and work better for not hiding other individual field
+    *   validations. */
+    console.log('====== showErrors ======');
+    // This is the one default the plugin does document
+    // TODO: Check if using this default is necessary (in da)
+    if (this.defaultShowErrors !== undefined) {{
+      this.defaultShowErrors();
+    }}
+    // Causes `.showErrors()` to be called a 2nd time, after `.highlight()` (and unhilight?)
+    if (original_showErrors !== undefined) {{
+      original_showErrors(errorMap, errorList);
+    }}
+    
+    // TODO: this is unfortunately also empty when another single field
+    // still has an error. It only works for an individual field validating itself.
+    // Crossing bounds and min/max work because each field tests all the other
+    // fields. Maybe do that with every rule, including `required`.
+    if (errorList.length === 0) {{
+      // Remove highlights from parent
+      $al_parent.removeClass('al_invalid');
+      // Hide all leftover errors
+      let $errors = $($al_parent.find('.al_split_date_error')[0]).children();
+      $errors.css('display', 'none');
+      
+    }} else {{
+      // Hide every error message
+      let $errors = $($al_parent.find('.al_split_date_error')[0]).children();
+      $errors.css('display', 'none');
+      
+      // Show only the most recent error, the one last passed into here
+      let error_id = $(errorList[0].element).attr('id');
+      let error = $(`#${{error_id}}-error`).css('display', 'block');
+    }}
+  }};  // Ends al_showErrors()
+  
+}};  // Ends set_up_showErrors()
+  
+  
+function test_plugin_lifecycle() {{
+  // TODO: remove this after finished tracking validator lifecycle
+  let validator = $("#daform").data('validator');
+  
+  let original_unhighlight = validator.settings.unhighlight;
+  validator.settings.unhighlight = function al_unhighlight(field, errorClass, validClass) {{
+    /** Study validation plugin lifecycle  */
+    console.log('====== unhighlight ======');
+    
+    // TODO: check in da. Not documented in plugin.
+    console.log('typeof defaultUnhighlight:', typeof validator.defaultUnhighlight);
+    // if( validator.defaultUnhighlight ) {{
+    //   validator.defaultUnhighlight(field, errorClass, validClass)
+    // }}
+    
+    original_unhighlight(field, errorClass, validClass);
+  }};  // Ends al_unhighlight()
+  
+  // TODO: remove this after finished tracking validator lifecycle
+  let original_success = validator.settings.success;
+  validator.settings.success = function al_success(message_elem) {{
+    /** Study validation plugin lifecycle  */
+    console.log('====== success ======');
+    
+    // TODO: check in da. Not documented in plugin.
+    console.log('typeof defaultSuccess:', typeof validator.defaultSuccess);
+    
+    // if( validator.defaultSuccess ) {{
+    //   validator.defaultSuccess(message_elem)
+    // }}
+    if (original_success) {{
+      original_success(message_elem);
+    }}
+  }};  // Ends al_success()
+  
+}};  // Ends test_plugin_lifecycle()
   
 
 function add_rules(element) {{
   /** Add all date rules to a given element.
   * 
-  * @param {{HTML Node}} element A date part node. */
+  * @param {{HTML Node}} element A date field. */
   let rules = {{
     // TODO: try returning value of 'day' for crossing bounds to get a better
     // error message.
@@ -527,6 +667,7 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   let converted_year = (new Date(`1/1/${{input_year}}`)).getFullYear();
   let input_month = get_$parent(field).find('.month option:selected').text();
   return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days.`;
+  
 }});  // ends validate '_alcrossingbounds'
   
   
