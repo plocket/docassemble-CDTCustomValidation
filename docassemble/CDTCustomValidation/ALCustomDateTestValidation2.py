@@ -21,6 +21,7 @@ console.log('---- starting custom date 2');
 Notes to keep around:
 - Rule names must avoid dashes.
 - year input of "1" counts as a date of 2001 and "11" is 2011
+- I didn't find anything like `defaultShowErrors` for other functions, here or in da
 *
 * Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
@@ -63,13 +64,6 @@ possibly detect valid on change, detect invalid on blur.
 TODO: prioritize validation
 TODO: Change var name "element" to "field" where appropriate
 TODO: Put `aria-describedby` on field somewhere somehow
-TODO: Bug:
-  click to year
-  Enter somethihng
-  set Day to 35
-  click out
-  fix day
-  all errors disappear
 
 DONE:
   - Handle un-required partial dates on submission (was already done in our da customdatatype)
@@ -77,6 +71,22 @@ DONE:
       our defaults if no more specific message is given.
   - [Answer: We do want to require a 4-digit year] Discuss requiring a 4-digit year
   - MVP highlight full element and none of the individual elements (with exclamation)
+  - (Bug) When one field is invalid, manipulating other fields will
+      affect errors on the first field invalidations, hiding them
+      and unhighlighting that first field when the other field is
+      valid and other stuff. This includes manipulating other non-date
+      fields. `showErrors` doesn't allow detecting element when things
+      are valid, so how do manage that?
+      When the other field is invalid already, triggering its invalidation
+      message will hide the first field's message, but it won't remove
+      the highlighting.
+  - Bug:
+    click to year
+    Enter somethihng
+    set Day to 35
+    click out
+    fix day
+    all errors disappear
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -97,6 +107,7 @@ function do_everything(original_element) {{
   set_up_validation($al_parent);
 }};
   
+  
 function replace_date($date) {{
   /** Replace the original date element with our 3 fields and
   *   make sure the fields update the original date value. */
@@ -106,9 +117,6 @@ function replace_date($date) {{
       
   // -- Construct the input components --
       
-  // Avoid .data() for our dynamic stuff - caching problems
-  // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
-  // https://stackoverflow.com/a/8708345/14144258
   var $al_parent = $('<div class="form-row row al_split_date_parent">');
   $date.before($al_parent);
   
@@ -117,6 +125,9 @@ function replace_date($date) {{
   let $month = create_month(date_id);
   let $day = create_date_part({{date_id, type: 'day'}});
   
+  // Avoid .data() for our dynamic stuff - caching problems
+  // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
+  // https://stackoverflow.com/a/8708345/14144258
   if (is_required($al_parent)) {{
     $year.attr('required', true);
     $month.attr('required', true);
@@ -155,7 +166,9 @@ function create_date_part({{type, date_id}}) {{
   var $col = $('<div class="col">');
   var id = date_id + '_' + type;
   // '_ignore' prevents the field from being submitted and causing an error
-  // TODO: Should id be the same?
+  // TODO: Should id be the same as name?
+  // TODO: Should we use the date's name here? So far, date names
+  // have been the same as their ids.
   let name =  '_ignore_' + id;
   
   var $label = $('<label>{{' + type + '}}</label>');
@@ -185,14 +198,15 @@ function create_month(date_id) {{
   var $col = $('<div class="col">');
   
   let id = date_id + '_month';
-  // '_ignore' prevents the field from being submitted and causing an error
-  // TODO: Should id be the same?
+  // '_ignore' prevents the field from being submitted, avoiding an error
+  // TODO: Should id be the same as name?
   let name =  '_ignore_' + id;
   
   let $label = $('<label>{{month}}</label>');
   $label.attr( 'for', name );
   $col.append($label);
   
+  // TODO: Add aria-describedby if necessary (check da)
   // aria-describedby is ok to have, even when the date-part error is
   // not present or is display: none
   // `for` is label of field
@@ -266,6 +280,8 @@ function add_error($al_parent) {{
 
 // Update value of original input when values change.
 function update_original_date({{$date, $al_parent}}) {{
+  /** Update value in original date field using the values
+  *   of the al split date parts. */
   var data = get_date_data($al_parent);
   var val = data.month + '/' + data.day + '/' + data.year;
   if ( val === '//' ) {{
@@ -321,9 +337,8 @@ function is_birthdate(element) {{
 }};  // Ends is_birthdate()
 
   
-function get_$date(element) {{
-  let $date = $($(element).closest('.dafieldpart').children('input')[0]);
-  return $date;
+function get_$date(element, done) {{
+  return $($(element).closest('.dafieldpart').children('input')[0]);
 }};  // Ends get_$date()
   
   
@@ -346,11 +361,13 @@ function get_$parent(element) {{
 function set_up_validation($al_parent) {{
   set_up_errorPlacement();
   set_up_highlight();
-  set_up_showErrors($al_parent);
-  // TODO: remove when done testing plugin lifecycle
-  test_plugin_lifecycle();
-  $al_parent.find('.al_split_date').each(function (index, element) {{
-    add_rules(element);
+  set_up_unhighlight();
+  
+  // Adding grouops dynamically later won't be reflected in validator.settings
+  $al_parent.find('.al_split_date').each(function make_validator_options (index, field) {{
+    // https://stackoverflow.com/a/9688284/14144258
+    add_rules(field);
+    add_to_groups(field);
   }});
 }};  // Ends set_up_validation()
 
@@ -363,18 +380,11 @@ function set_up_errorPlacement() {{
     /** Put all errors in one spot at the bottom of the parent.
     *   Only runs once per field.
     */
-    console.log('======== errorPlacement =========');
-    
-    // TODO: check in da. Not documented in plugin.
-    console.log('typeof defaultErrorPlacement:', typeof validator.defaultErrorPlacement);
-    // if( validator.defaultErrorPlacement ) {{
-    //   validator.defaultErrorPlacement(error, field)
-    // }}
-    
     let $al_parent = get_$parent(field);
     // If this isn't an AL date, use the original behavior
     if (!$al_parent[0] && original_error_placement !== undefined) {{
       original_error_placement(error, field);
+      return;
     }}
 
     $(error).appendTo($al_parent.find('.al_split_date_error')[0]);
@@ -388,15 +398,6 @@ function set_up_highlight() {{
   let original_highlight = validator.settings.highlight;
   validator.settings.highlight = function al_highlight(field, errorClass, validClass) {{
     /** Highlight parent instead of individual fields. MVP  */
-    
-    console.log('====== highlight ======');
-    
-    // TODO: check in da. Not documented in plugin.
-    console.log('typeof defaultHighlight:', typeof validator.defaultHighlight);
-    // if( validator.defaultHighlight ) {{
-    //   validator.defaultHighlight(field, errorClass, validClass)
-    // }}
-    
     let $al_parent = get_$parent(field);
     // If this isn't an AL date, use the original behavior
     if (!$al_parent[0] && original_highlight !== undefined) {{
@@ -410,95 +411,20 @@ function set_up_highlight() {{
     }});
     
   }};  // Ends al_highlight()
-  
 }};  // Ends set_up_highlight()
   
-  
-function set_up_showErrors($al_parent) {{
-  /** For our date elements, add to pre-existing showErrors method.
-  *   Note: When there are no errors, `showError` has no way to get the parent.
-  * 
-  * @param {{jQuery obj}} $al_parent The parent we created for our date fields. */
-  
+function set_up_unhighlight() {{
+  /** For our date elements, override pre-existing highlight method. */
   let validator = $("#daform").data('validator');
-  let original_showErrors = validator.settings.showErrors;
-  validator.settings.showErrors = function al_showErrors(errorMap, errorList) {{
-    /** Show only one error at a time and hide irrelevant errors.
-    *   TODO: Try moving to `.success()`. Called before this, but maybe will
-    *   still work, and work better for not hiding other individual field
-    *   validations. */
-    console.log('====== showErrors ======');
-    // This is the one default the plugin does document
-    // TODO: Check if using this default is necessary (in da)
-    if (this.defaultShowErrors !== undefined) {{
-      this.defaultShowErrors();
-    }}
-    // Causes `.showErrors()` to be called a 2nd time, after `.highlight()` (and unhilight?)
-    if (original_showErrors !== undefined) {{
-      original_showErrors(errorMap, errorList);
-    }}
-    
-    // TODO: this is unfortunately also empty when another single field
-    // still has an error. It only works for an individual field validating itself.
-    // Crossing bounds and min/max work because each field tests all the other
-    // fields. Maybe do that with every rule, including `required`.
-    if (errorList.length === 0) {{
-      // Remove highlights from parent
-      $al_parent.removeClass('al_invalid');
-      // Hide all leftover errors
-      let $errors = $($al_parent.find('.al_split_date_error')[0]).children();
-      $errors.css('display', 'none');
-      
-    }} else {{
-      // Hide every error message
-      let $errors = $($al_parent.find('.al_split_date_error')[0]).children();
-      $errors.css('display', 'none');
-      
-      // Show only the most recent error, the one last passed into here
-      let error_id = $(errorList[0].element).attr('id');
-      let error = $(`#${{error_id}}-error`).css('display', 'block');
-    }}
-  }};  // Ends al_showErrors()
-  
-}};  // Ends set_up_showErrors()
-  
-  
-function test_plugin_lifecycle() {{
-  // TODO: remove this after finished tracking validator lifecycle
-  let validator = $("#daform").data('validator');
-  
   let original_unhighlight = validator.settings.unhighlight;
   validator.settings.unhighlight = function al_unhighlight(field, errorClass, validClass) {{
-    /** Study validation plugin lifecycle  */
-    console.log('====== unhighlight ======');
-    
-    // TODO: check in da. Not documented in plugin.
-    console.log('typeof defaultUnhighlight:', typeof validator.defaultUnhighlight);
-    // if( validator.defaultUnhighlight ) {{
-    //   validator.defaultUnhighlight(field, errorClass, validClass)
-    // }}
+    /** Unhighlight parent instead of individual fields. MVP  */
+    let $al_parent = get_$parent(field);
+    $al_parent.removeClass('al_invalid');
     
     original_unhighlight(field, errorClass, validClass);
   }};  // Ends al_unhighlight()
-  
-  // TODO: remove this after finished tracking validator lifecycle
-  let original_success = validator.settings.success;
-  validator.settings.success = function al_success(message_elem) {{
-    /** Study validation plugin lifecycle  */
-    console.log('====== success ======');
-    
-    // TODO: check in da. Not documented in plugin.
-    console.log('typeof defaultSuccess:', typeof validator.defaultSuccess);
-    
-    // if( validator.defaultSuccess ) {{
-    //   validator.defaultSuccess(message_elem)
-    // }}
-    if (original_success) {{
-      original_success(message_elem);
-    }}
-  }};  // Ends al_success()
-  
-}};  // Ends test_plugin_lifecycle()
+}};  // Ends set_up_unhighlight()
   
 
 function add_rules(element) {{
@@ -509,7 +435,10 @@ function add_rules(element) {{
     // TODO: try returning value of 'day' for crossing bounds to get a better
     // error message.
     _alcrossingbounds: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
+    _al4digityear: true,
     almin: get_$date(element).attr('data-almin') || false,
+    // TODO: try:
+    // almax: is_birthdate(element) || get_$date(element).attr('data-almax'),
     almax: {{
       depends: function(element) {{
         // Birthdates always have a max value
@@ -527,6 +456,17 @@ function add_rules(element) {{
 }};  // Ends add_rules()
   
   
+function add_to_groups(field) {{
+  /** Add field to its group dynamically after-the-fact. We have
+  *   to do this because da has already created its groups and we
+  *   don't want to override anything.
+  *   Note: Adding groups dynamically here won't be reflected in `validator.settings`
+  */
+  let validator = $("#daform").data('validator');
+  validator.groups[ $(field).attr('name') ] = get_$date(field).attr('id');
+}};  // Ends add_to_groups()
+  
+  
 // ==================================================
 // ==================================================
 // === Validation methods ===
@@ -536,8 +476,11 @@ function add_rules(element) {{
 // -- Whole date validations --
 
 $.validator.addMethod('almin', function(value, element, params) {{
-  /** Returns true if full date is >= min date Also makes sure
-  *   all fields get highlighted when invalid. */
+  /** Returns true if full date is >= min date. */
+  
+  // TODO: Try using params in the rule, then using them here instead
+  // of getting them from the date element. Same for max.
+  
   if (!date_is_ready_for_min_max(element)) {{
     return true;
   }}
@@ -548,7 +491,6 @@ $.validator.addMethod('almin', function(value, element, params) {{
   // Otherwise very hard for devs to track down. Log in console?
   var date_min = new Date( get_$date(element).attr('data-almin') );
   let is_valid = date_val >= date_min;
-  // handle_parent_validation({{ element, is_valid }});
   
   return is_valid;
   
@@ -563,8 +505,7 @@ $.validator.addMethod('almin', function(value, element, params) {{
   
   
 $.validator.addMethod('almax', function(value, element, params) {{
-  /** Returns true if full date is <= max date. Also makes sure
-  *   all fields get highlighted when invalid. */
+  /** Returns true if full date is <= max date. */
   if (!date_is_ready_for_min_max(element)) {{
     return true;
   }}
@@ -582,7 +523,6 @@ $.validator.addMethod('almax', function(value, element, params) {{
     date_max = new Date(Date.now());
   }}
   let is_valid = date_val <= date_max;
-  // handle_parent_validation({{ element, is_valid }});
 
   return is_valid;
   
@@ -603,45 +543,23 @@ $.validator.addMethod('almax', function(value, element, params) {{
 }});  // ends validate 'almax'
   
   
-// --- Whole year validation ---
+// --- "Individual field" validation ---
+// (TODO: they should all always validate based on the other fields)
   
 $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   /** Returns false if full input values cannot be converted to a
   *   matching Date object. E.g. 12/32/2000 will be converted to 1/1/2001.
   *   HTML doesn't do this check itself.
   *   Right now only day inputs can create mismatching dates.
-  * 
-  *   Ensure invalid field (day field) is highlighted.
   *   
   *   Note: We need to validate each field for this. If they put Jan 30 and
   *   then change month to Feb, we need to show the error then.
   */
-  
-  // Only validate day for this, but validate it any time any of
+  // Only validate day for this, but still validate it any time any of
   // the split date parts are checked
-  
   let validity_vals = which_inputs_dont_cross_bounds(element);
-  let day_is_valid = validity_vals.day === true;
-  // Display invalid highlighting on day elem if needed
-  if (!day_is_valid) {{
-    // TODO: Only highlight day
-    // TODO: Get rid of other fields' cross bounds validation
-    // messages and highlighting if needed.
-    // manage_bounds_highlighting({{
-    //   element: element,
-    //   is_valid: day_is_valid,
-    // }});
-  }}
+  return validity_vals.day;
 
-  if (!day_is_valid) {{
-    if (!$(element).hasClass('day')) {{
-      $(get_$parent(element).find('input.day')[0]).valid();
-      return true;
-    }}
-  }} else {{
-    return true;
-  }}
-  
 }}, function _al_crossing_bounds_message (validity, field) {{
   /** Returns the string of the invalidation message. */
   
@@ -666,9 +584,33 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   let input_year = get_$parent(field).find('.year').val();
   let converted_year = (new Date(`1/1/${{input_year}}`)).getFullYear();
   let input_month = get_$parent(field).find('.month option:selected').text();
-  return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days.`;
   
+  return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days.`;
 }});  // ends validate '_alcrossingbounds'
+  
+
+$.validator.addMethod('_al4digityear', function(value, field, params) {{
+  /** Returns true if year is empty or has 4 digits. */
+  
+  // Check year to make sure it's 4 digits
+  let text = get_$parent(field).find('input.year')[0].value;
+  console.log(text);
+  // Empty year is not invalid in this way
+  if (text.length === 0) {{return true;}}
+  if (text.length !== 4) {{
+    return false;
+  }} else {{
+    return true;
+  }}
+  
+}}, function al_4digityear_message (validity, field) {{
+  /** Returns the string of the invalidation message. */
+  return (
+    get_$date(field).attr('data-al4digityearmessage')
+    || get_$date(field).attr('data-aldefaultmessage')
+    || `The year needs to be 4 digits long.`
+  );
+}});  // ends validate '_al4digityear'
   
   
 // ==================================================
@@ -802,6 +744,7 @@ function setDate({{year, month, date}}) {{
 // ====================================
 // ====================================
 // ====================================
+// Add to params: _al4digityearmessage
 // for codepen
 //$(document).trigger('daPageLoad');
   
@@ -849,7 +792,7 @@ class ALThreePartsDateTestValidation2(CustomDataType):
     javascript = js_text.format(month=word("Month"), day=word("Day"), year=word("Year"))
     jq_message = word("Answer with a valid date")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'aldefaultmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'al4digityearmessage', 'aldefaultmessage']
 
     @classmethod
     def validate(cls, item: str):
@@ -891,7 +834,7 @@ class ALBirthDateTestValidation2(ALThreePartsDateTestValidation2):
     ).replace("ALThreePartsDateTestValidation2", "ALBirthDateTestValidation2")
     jq_message = word("Answer with a valid date of birth")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'aldefaultmessage']
+    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'al4digityearmessage', 'aldefaultmessage']
 
     @classmethod
     def validate(cls, item: str):

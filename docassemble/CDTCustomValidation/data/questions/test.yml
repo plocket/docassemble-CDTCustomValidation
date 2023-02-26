@@ -54,6 +54,7 @@ fields:
     aldefaultmessage: Default 3-part
     almax: 2222-02-05
     alcrossingboundsmessage: Funky day 3-part
+    al4digityearmessage: Must be 4 digits! 3-part
     almaxmessage: Too late 3-part
     validation messages:
       required: Required!
