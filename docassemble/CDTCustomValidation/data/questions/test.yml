@@ -23,26 +23,27 @@ fields:
     max: 2
     validation messages:
       max: Custom message.
-  - Three parts: test_3_part
+  - Custom messages: test_3_part
     datatype: ALThreePartsDateTestValidation2
     required: False
-    almin: 1111-05-05
-    #alminmessage: Custom too early 3-part message.
-    aldefaultmessage: Custom default 3-part message.
-    almax: 2222-02-05
-    almaxmessage: Custom too late 3-part message.
-    alcrossingboundsmessage: Custom funky day 3-part message.
-    al4digityearmessage: Custom must be 4 digits! 3-part message.
+    alMin: 1111-05-05
+    # Custom messages are the only way to add translation right now
+    #alMinMessage: Custom too early 3-part message.
+    alDefaultMessage: Custom default 3-part message.
+    alMax: 2222-02-05
+    alMaxMessage: Custom too late 3-part message.
+    alInvalidDayMessage: Custom funky day 3-part message.
+    alInvalidYearMessage: Custom must be 4 digits! 3-part message.
     default: 1/1/2000
-  - Birthday: test_b_day
+  - Birthday and default messages: test_b_day
     datatype: ALBirthDateTestValidation2
     required: True
     validation messages:
       required: Required!
-    almin: 1111-02-02
-    #alminmessage: "Custom too early b-day message"
-    #almax: 2020-02-06
-    #almaxmessage: "Custom too late b-day message"
+    alMin: 1111-02-02
+    #alMinMessage: "Custom too early b-day message"
+    #alMax: 2020-02-06
+    #alMaxMessage: "Custom too late b-day message"
 ---
 mandatory: True
 question: That's it

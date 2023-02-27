@@ -11,7 +11,7 @@ from typing import Optional
 import re
 
 js_text = """\
-// $('#daform').validate({{ errorClass: 'is-invalid' }});  // for codepen
+//$('#daform').validate({{ errorClass: 'is-invalid' }});  // for codepen
 
 console.log('---- starting custom date 2');
 
@@ -19,9 +19,11 @@ console.log('---- starting custom date 2');
 
 /*
 * Notes to keep around:
+* - Don't include a min date default for birthdays. Too hard to predict developer needs, like great-grandmother's birthday. Document that developers need to set a min value if they want one.
 * - Rule names must avoid dashes.
 * - year input of "1" counts as a date of 2001 and "11" is 2011
 * - I didn't find anything like `defaultShowErrors` for other functions, here or in da
+* - left to right precedence
 *
 * Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
@@ -34,10 +36,12 @@ console.log('---- starting custom date 2');
 
 /*
 TODO: prioritize validation
-TODO: Change var name "element" to "field" where possible
 TODO: Put `aria-describedby` on field somewhere somehow
+BUG: `required` da custom message doesn't show up, field isn't highlighted
+
 
 DONE:
+  - Change var name "element" to "field" where possible
   - Handle un-required partial dates on submission (was already done in our da customdatatype)
   - Provide attrib for default message that will appear before
       our defaults if no more specific message is given.
@@ -65,22 +69,20 @@ DONE:
 try {{
 
 $(document).on('daPageLoad', function(){{
-  
   $('input[type="ALThreePartsDateTestValidation2"]').each(function(){{
-    let $date = $(this);
-    let {{$al_parent, $year, $month, $day, $error}} = replace_date($date);
+    let {{$al_parent, $year, $month, $day, $error}} = replace_date(this);
     set_up_validation($al_parent);
   }});  // ends for each date datatype
-  
 }});  // ends on da page load
   
   
-function replace_date($date) {{
+function replace_date(date) {{
   /** Replace the original date element with our 3 fields and
   *   make sure the fields update the original date value.
   * 
-  * @param {{$ obj}} $date jQuery obj of the original date element.
+  * @param {{HTML Node}} date The original date element.
   */
+  let $date = $(date);
   $date.hide();
   $date.attr('type', 'hidden');
   $date.attr('aria-hidden', 'true');
@@ -122,6 +124,7 @@ function replace_date($date) {{
   
   let $error = add_error($al_parent);
   
+  // TODO: Only need to return parent?
   return {{$al_parent, $year, $month, $day, $error}};
 }};  // Ends replace_date()
   
@@ -132,7 +135,7 @@ function replace_date($date) {{
 // A shame these have to be split into month and others
 function create_date_part({{type, date_id}}) {{
   /** Return one date part with a label and input inside a container.
-  *   TODO: Should we use `name` instead of `id`?
+  *   TODO: Should we use `name` instead of `id`? Will that mess up `aria-describedby`?
   * 
   * @param {{str}} type 'year' or 'day'
   * @param {{str}} date_id ID of the original date field
@@ -158,6 +161,11 @@ function create_date_part({{type, date_id}}) {{
   var $field = $('<input class="form-control al_split_date ' + type + ' ' + date_id + '" type="number" min="1" inputmode="numeric">');
   $field.attr('id', id);
   $field.attr('name', name);
+  // There's only one message element, so all fields are described by it
+  // I think jquery validation plugin uses the error message's `for` attrib,
+  // but I'm not sure where that originally comes from. Looks like the original
+  // input's `id`, but I'm not sure why the plugin is using that.
+  $field.attr('aria-describedby', id + '-error');
   $col.append($field);
   
   return $field;
@@ -166,7 +174,7 @@ function create_date_part({{type, date_id}}) {{
   
 function create_month(date_id) {{
   /** Return one month type date part given the original date node id.
-  *   TODO: Should we use `name` instead?
+  *   TODO: Should we use `name` instead of `id`? Will that mess up `aria-describedby`?
   * 
   * @param {{str}} date_id ID of the original date field
   */
@@ -191,6 +199,8 @@ function create_month(date_id) {{
   var $field = $('<select class="form-select al_split_date month ' + date_id + '">');  // unique
   $field.attr('id', id);
   $field.attr('name', name);
+  // There's only one message element, so all fields are described by it
+  $field.attr('aria-describedby', id + '-error');
   add_months($field);  // unique
   
   $col.append($field);
@@ -199,11 +209,13 @@ function create_month(date_id) {{
 }};  // Ends create_month()
   
   
-function add_months($select) {{
+function add_months(select) {{
   /** Add month values to selection field.
   * 
-  * @param {{$ obj}} $select jQuery obj of a <select> node.
+  * @param {{HTML Node | $ obj}} select A <select> node.
   */
+  
+  let $select = $(select);
   
   // "No month selected" option
   let $blank_opt = $('<option value=""></option>');
@@ -254,7 +266,7 @@ function use_previous_values({{$date, $al_parent}}) {{
 function add_error($al_parent) {{
   /** Add element that will contain all errors.
   * 
-  * @param {{$ obj}} $al_parent jQuery obj of the al parent of our split date parts.
+  * @param {{$ obj}} $al_parent The al parent of our split date parts.
   */
   let $date = get_$date($al_parent);
   let $error = $('<div id="al_' + $date.attr('id') + '_error" class="da-has-error al_split_date_error"></div>');
@@ -268,8 +280,8 @@ function update_original_date({{$date, $al_parent}}) {{
   /** Update value in original date field using the values
   *   of the al split date parts.
   * 
-  * @param {{$ obj}} $date jQuery obj of the original date element.
-  * @param {{$ obj}} $al_parent jQuery obj of the al parent of our split date parts.
+  * @param {{$ obj}} $date The original date element.
+  * @param {{$ obj}} $al_parent The al parent of our split date parts.
   */
   var data = get_date_data($al_parent);
   var val = data.month + '/' + data.day + '/' + data.year;
@@ -287,9 +299,10 @@ function update_original_date({{$date, $al_parent}}) {{
 // ==================================================
 
 function is_required(element) {{
-  /*** Return true if date value is required, otherwise return false.
+  /*** Returns true if date value is required, otherwise returns false.
   * 
-  * @param {{Node}} element AL split date part.
+  * @param {{Node}} element AL split date element. Can be parent of date parts.
+  * @returns {{bool}}
   */
   let $date = get_$date(element);
   let is_required = $date.closest('.da-form-group').hasClass('darequired');
@@ -297,18 +310,17 @@ function is_required(element) {{
 }}  // Ends is_required()
   
   
-function get_date_data($element) {{
+function get_date_data(element) {{
   /**
   * Given an element that holds a part of the date information,
   * return the full date data as an object.
   * 
-  * @param {{$ obj}} $element jQuery obj of an al split date part.
-  * 
+  * @param {{HTML Node | $ obj}} element Any al split date element, including parent.
   * @returns {{year: str, month: str, day: str}}
   */
-  var year_elem = get_$parent($element).find('input.year')[0];
-  var month_elem = get_$parent($element).find('select.month')[0];
-  var day_elem = get_$parent($element).find('input.day')[0];
+  var year_elem = get_$parent(element).find('input.year')[0];
+  var month_elem = get_$parent(element).find('select.month')[0];
+  var day_elem = get_$parent(element).find('input.day')[0];
   var date_data = {{
     year: $(year_elem).val(),
     month: $(month_elem).val(),
@@ -321,7 +333,8 @@ function get_date_data($element) {{
 function is_birthdate(element) {{
   /** If the element is part of a al birthdate field, returns true, otherwise false.
   * 
-  * @param {{Node}} element A split date part.
+  * @param {{HTML Node}} element Any al split date element, including al parent.
+  * @returns {{bool}}
   */
   let birthdate = get_$parent(element).parent().find('.daALBirthDateTestValidation2')[0];
   return Boolean(birthdate);
@@ -331,7 +344,8 @@ function is_birthdate(element) {{
 function get_$date(element) {{
   /** Returns jQuery obj of original date element.
   * 
-  * @param {{HTML Node}} element Node of any al split date element, including al parent.
+  * @param {{HTML Node}} element Any al split date element, including al parent.
+  * @returns {{jQuery obj}}
   */
   return $($(element).closest('.dafieldpart').children('input')[0]);
 }};  // Ends get_$date()
@@ -341,7 +355,9 @@ function get_$parent(element) {{
   /** Return the element we created to surround our date elements.
   *   Easier to maintain all in one place.
   * 
-  * @param {{Node}} element Any element. */
+  * @param {{HTML Node}} element Any element.
+  * @returns {{jQuery obj}} Note: can be an "empty" jQuery object.
+  */
   // `.closest()` will get the element itself if appropriate
   return $(element).closest('.al_split_date_parent');
 }};  // Ends get_$parent()
@@ -425,33 +441,32 @@ function set_up_unhighlight() {{
 }};  // Ends set_up_unhighlight()
   
 
-function add_rules(element) {{
-  /** Add all date rules to a given element.
+function add_rules(field) {{
+  /** Add all date rules to a given field.
   * 
-  * @param {{HTML Node}} element An al split date field.
+  * @param {{HTML Node}} field An al split date field.
   */
   let rules = {{
-    // TODO: try returning value of 'day' for crossing bounds to get a better
-    // error message.
-    _alcrossingbounds: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
-    _al4digityear: true,
-    almin: get_$date(element).attr('data-almin') || false,
+    // TODO: try returning value of 'day' to get a better error message.
+    _alInvalidDay: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
+    _alInvalidYear: true,
+    alMin: get_$date(field).attr('data-alMin') || false,
     // TODO: try:
-    // almax: is_birthdate(element) || get_$date(element).attr('data-almax'),
-    almax: {{
-      depends: function(element) {{
+    // alMax: is_birthdate(field) || get_$date(field).attr('data-alMax'),
+    alMax: {{
+      depends: function(field) {{
         // Birthdates always have a max value
         // TODO: Should the dev still be able to override?
-        if ( is_birthdate(element) ) {{
+        if ( is_birthdate(field) ) {{
           return true;
         }}
-        // Otherwise, check the element itself
-        return get_$date(element).attr('data-almax') !== undefined;
+        // Otherwise, check the field itself
+        return get_$date(field).attr('data-alMax') !== undefined;
       }}
     }},
   }};  // ends rules
   
-  $(element).rules('add', rules);
+  $(field).rules('add', rules);
 }};  // Ends add_rules()
   
   
@@ -463,7 +478,7 @@ function add_to_groups(field) {{
   * 
   *   Inspired by https://stackoverflow.com/a/9688284/14144258
   * 
-  * @param {{HTML Node}} element An al split date field.
+  * @param {{HTML Node}} field An al split date field.
   */
   let validator = $("#daform").data('validator');
   validator.groups[ $(field).attr('name') ] = get_$date(field).attr('id');
@@ -478,79 +493,79 @@ function add_to_groups(field) {{
   
 // -- Whole date validations --
 
-$.validator.addMethod('almin', function(value, element, params) {{
+$.validator.addMethod('alMin', function(value, field, params) {{
   /** Returns true if full date is >= min date. */
   
   // TODO: Try using params in the rule instead of true/false, then
-  // using them here instead of getting them from the date element.
+  // using them here instead of getting them from the date field.
   // Same for max.
   
-  if (!date_is_ready_for_min_max(element)) {{
+  if (!date_is_ready_for_min_max(field)) {{
     return true;
   }}
   
-  var data = get_date_data(element);
+  var data = get_date_data(field);
   var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
-  // TODO: Catch invalid `data-almin` attr values? Useful for devs.
+  // TODO: Catch invalid `data-alMin` attr values? Useful for devs.
   // Otherwise very hard for devs to track down. Log in console?
-  var date_min = new Date( get_$date(element).attr('data-almin') );
+  var date_min = new Date( get_$date(field).attr('data-alMin') );
   let is_valid = date_val >= date_min;
   
   return is_valid;
   
-}}, function al_min_message (validity, field) {{
+}}, function alMinMessage (validity, field) {{
   /** Returns the string of the invalidation message. */
   return (
-    get_$date(field).attr('data-alminmessage')
-    || get_$date(field).attr('data-aldefaultmessage')
-    || `The date needs to be on or after ${{ get_$date(field).attr('data-almin') }}.`
+    get_$date(field).attr('data-alMinMessage')
+    || get_$date(field).attr('data-alDefaultMessage')
+    || `The date needs to be on or after ${{ get_$date(field).attr('data-alMin') }}.`
   );
-}});  // ends validate 'almin'
+}});  // ends validate 'alMin'
   
   
-$.validator.addMethod('almax', function(value, element, params) {{
+$.validator.addMethod('alMax', function(value, field, params) {{
   /** Returns true if full date is <= max date. */
-  if (!date_is_ready_for_min_max(element)) {{
+  if (!date_is_ready_for_min_max(field)) {{
     return true;
   }}
 
-  var data = get_date_data(element);
+  var data = get_date_data(field);
   var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
   if (isNaN(date_val)) {{
     return true;
   }}
 
-  // TODO: Catch invalid almax attr values? Log in console?
-  var max_attr = get_$date(element).attr('data-almax');
+  // TODO: Catch invalid alMax attr values? Log in console?
+  var max_attr = get_$date(field).attr('data-alMax');
   var date_max = new Date(max_attr);
-  if ( isNaN(date_max) && is_birthdate(element)) {{
+  if ( isNaN(date_max) && is_birthdate(field)) {{
     date_max = new Date(Date.now());
   }}
   let is_valid = date_val <= date_max;
 
   return is_valid;
   
-}}, function al_max_message (validity, field) {{
+}}, function alMaxMessage (validity, field) {{
   /** Returns the string of the invalidation message. */
   
-  var default_max_message = `The date needs to be on or before ${{ get_$date(field).attr('data-almax') }}.`;
+  var default_MaxMessage = `The date needs to be on or before ${{ get_$date(field).attr('data-alMax') }}.`;
   // Birthdays have a different default max message
-  if (!get_$date(field).attr('data-almax') && is_birthdate(field)) {{
-    default_max_message = 'A <strong>birthdate</strong> must be in the past.';
+  if (!get_$date(field).attr('data-alMax') && is_birthdate(field)) {{
+    default_MaxMessage = 'A <strong>birthdate</strong> must be in the past.';
   }}
   
   return (
-    get_$date(field).attr('data-almaxmessage')
-    || get_$date(field).attr('data-aldefaultmessage')
-    || default_max_message
+    get_$date(field).attr('data-alMaxMessage')
+    || get_$date(field).attr('data-alDefaultMessage')
+    || default_MaxMessage
   );
-}});  // ends validate 'almax'
+}});  // ends validate 'alMax'
   
   
 // --- "Individual field" validation ---
 // (TODO: they should all always validate based on the other fields)
   
-$.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
+$.validator.addMethod('_alInvalidDay', function(value, field, params) {{
   /** Returns false if full input values cannot be converted to a
   *   matching Date object. E.g. 12/32/2000 will be converted to 1/1/2001.
   *   HTML doesn't do this check itself.
@@ -561,15 +576,15 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   */
   // Only validate day for this, but still validate it any time any of
   // the split date parts are checked
-  let validity_vals = which_inputs_dont_cross_bounds(element);
+  let validity_vals = which_inputs_dont_cross_bounds(field);
   return validity_vals.day;
 
-}}, function _al_crossing_bounds_message (validity, field) {{
+}}, function alInvalidDayMessage (validity, field) {{
   /** Returns the string of the invalidation message. */
   
   // Always return a custom message first
-  let custom_msg = get_$date(field).attr('data-alcrossingboundsmessage')
-                   || get_$date(field).attr('data-aldefaultmessage');
+  let custom_msg = get_$date(field).attr('data-alInvalidDayMessage')
+                   || get_$date(field).attr('data-alDefaultMessage');
   if (custom_msg) {{
     return custom_msg;
   }}
@@ -590,15 +605,14 @@ $.validator.addMethod('_alcrossingbounds', function(value, element, params) {{
   let input_month = get_$parent(field).find('.month option:selected').text();
   
   return `${{input_month}} ${{converted_year}} doesn't have ${{input_date}} days.`;
-}});  // ends validate '_alcrossingbounds'
+}});  // ends validate '_alInvalidDay'
   
 
-$.validator.addMethod('_al4digityear', function(value, field, params) {{
+$.validator.addMethod('_alInvalidYear', function(value, field, params) {{
   /** Returns true if year is empty or has 4 digits. */
   
   // Check year to make sure it's 4 digits
   let text = get_$parent(field).find('input.year')[0].value;
-  console.log(text);
   // Empty year is not invalid in this way
   if (text.length === 0) {{return true;}}
   // Dates will remove leading 0's, thus sadly 0011 == 2011
@@ -608,14 +622,14 @@ $.validator.addMethod('_al4digityear', function(value, field, params) {{
     return true;
   }}
   
-}}, function al_4digityear_message (validity, field) {{
+}}, function alInvalidYearMessage (validity, field) {{
   /** Returns the string of the invalidation message. */
   return (
-    get_$date(field).attr('data-al4digityearmessage')
-    || get_$date(field).attr('data-aldefaultmessage')
-    || `The year needs to be 4 digits long and cannot start with 0.`
+    get_$date(field).attr('data-alInvalidYearMessage')
+    || get_$date(field).attr('data-alDefaultMessage')
+    || `The year needs to be 4 digits long and cannot start with "0".`
   );
-}});  // ends validate '_al4digityear'
+}});  // ends validate '_alInvalidYear'
   
   
 // ==================================================
@@ -627,6 +641,9 @@ $.validator.addMethod('_al4digityear', function(value, field, params) {{
 function date_is_ready_for_min_max(element) {{
   /** Return true if date input is ready to be evaluated for min/max
   *   date value invalidation.
+  * 
+  * @param {{HTML Node}} element Any al split date element, including the parent.
+  * @returns {{bool}}
   */
   var data = get_date_data(element);
   // Don't evaluate min/max if the date is only partly filled
@@ -640,7 +657,7 @@ function date_is_ready_for_min_max(element) {{
     return false;
   }}
   
-  // Don't need to avoid a crossing bounds situation. Seems to work
+  // Don't need to avoid an invalid day situation. Seems to work
   // without that check in here.
   
   return true;
@@ -660,7 +677,10 @@ function which_inputs_dont_cross_bounds(element) {{
   * Inspired by https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
   *   Changed as little as possible.
   * 
-  * @param element {{HTMLNode}} An input in the al split date picker
+  * @param element {{HTML Node}} Any element in the al split date picker
+  * 
+  * @returns {{year: bool, month: bool, day: bool}} Date parts that are
+  *   valid will have a value of `true`
   * 
   * @examples:
   * 10//2000  // {{year: true, month: true, day: true}}
@@ -668,9 +688,6 @@ function which_inputs_dont_cross_bounds(element) {{
   * 10/32/2000  // {{year: true, month: true, day: false}}
   * Only day can be invalid in this way?
   * 12/42/2000  // {{year: true, month: true, day: false}}? {{year: false, month: true, day: false}}?
-  * 
-  * @returns {{year: bool, month: bool, day: bool}} Date parts that are
-  *   valid will have a value of `true`
   */
   var input_status = {{
     year: true, month: true, day: true,
@@ -726,15 +743,15 @@ function which_inputs_dont_cross_bounds(element) {{
   return input_status;
 }};  // Ends which_inputs_dont_cross_bounds()
 
-/**
- * Set date from month day year
- *
- * @param {{number}} year the year to set
- * @param {{number}} month the month to set (zero-indexed)
- * @param {{number}} date the date to set
- * @returns {{Date}} the set date
- */
 function setDate({{year, month, date}}) {{
+  /**
+  * Set date from month day year
+  *
+  * @param {{number}} year the year to set
+  * @param {{number}} month the month to set (zero-indexed)
+  * @param {{number}} date the date to set
+  * @returns {{Date}} the set date
+  */
   const newDate = new Date(0);
   newDate.setFullYear(year, month, date);
   return newDate;
@@ -791,7 +808,10 @@ class ALThreePartsDateTestValidation2(CustomDataType):
     javascript = js_text.format(month=word("Month"), day=word("Day"), year=word("Year"))
     jq_message = word("Answer with a valid date")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'al4digityearmessage', 'aldefaultmessage']
+    mako_parameters = [
+      'alMin', 'alMinMessage', 'alMax', 'alMaxMessage',
+      'alInvalidDayMessage', 'alInvalidYearMessage', 'alDefaultMessage'
+    ]
 
     @classmethod
     def validate(cls, item: str):
@@ -833,7 +853,10 @@ class ALBirthDateTestValidation2(ALThreePartsDateTestValidation2):
     ).replace("ALThreePartsDateTestValidation2", "ALBirthDateTestValidation2")
     jq_message = word("Answer with a valid date of birth")
     is_object = True
-    mako_parameters = ['almin', 'almax', 'alminmessage', 'almaxmessage', 'alcrossingboundsmessage', 'al4digityearmessage', 'aldefaultmessage']
+    mako_parameters = [
+      'alMin', 'alMinMessage', 'alMax', 'alMaxMessage',
+      'alInvalidDayMessage', 'alInvalidYearMessage', 'alDefaultMessage'
+    ]
 
     @classmethod
     def validate(cls, item: str):
