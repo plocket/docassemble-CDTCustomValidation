@@ -11,7 +11,7 @@ from typing import Optional
 import re
 
 js_text = """\
-//$('#daform').validate({{ errorClass: 'is-invalid' }});  // for codepen
+//$('#daform').validate({{ errorClass: 'is-invalid', messages: {{curbs: {{ required: 'bar' }}}} }});  // for codepen
 
 console.log('---- starting custom date 2');
 
@@ -72,6 +72,7 @@ $(document).on('daPageLoad', function(){{
   $('input[type="ALThreePartsDateTestValidation2"]').each(function(){{
     let {{$al_parent, $year, $month, $day, $error}} = replace_date(this);
     set_up_validation($al_parent);
+    let validator = $("#daform").data('validator');
   }});  // ends for each date datatype
 }});  // ends on da page load
   
@@ -81,6 +82,8 @@ function replace_date(date) {{
   *   make sure the fields update the original date value.
   * 
   * @param {{HTML Node}} date The original date element.
+  * 
+  * @returns undefined
   */
   let $date = $(date);
   $date.hide();
@@ -89,13 +92,20 @@ function replace_date(date) {{
       
   // -- Construct the input components --
       
-  var $al_parent = $('<div class="form-row row al_split_date_parent">');
-  $date.before($al_parent);
-  
   let date_id = $date.attr('id');
   let $year = create_date_part({{date_id, type: 'year'}});
   let $month = create_month(date_id);
   let $day = create_date_part({{date_id, type: 'day'}});
+  
+  // For removing extra padding from invalid inputs
+  let $date_parts_container = $('<div class="date_parts_container form-row row"></div>');
+  $date_parts_container.append($month.closest('.col'));
+  $date_parts_container.append($day.closest('.col'));
+  $date_parts_container.append($year.closest('.col'));
+  
+  var $al_parent = $('<div class="al_split_date_parent">');
+  $date.before($al_parent);
+  $al_parent.append($date_parts_container);
   
   // Avoid .data() for our dynamic stuff - caching problems
   // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
@@ -105,10 +115,6 @@ function replace_date(date) {{
     $month.attr('required', true);
     $day.attr('required', true);
   }}
-  
-  $al_parent.append($month.closest('.col'));
-  $al_parent.append($day.closest('.col'));
-  $al_parent.append($year.closest('.col'));
   
   use_previous_values({{$date, $al_parent}});
   
@@ -139,8 +145,10 @@ function create_date_part({{type, date_id}}) {{
   * 
   * @param {{str}} type 'year' or 'day'
   * @param {{str}} date_id ID of the original date field
+  * 
+  * @returns undefined
   */
-  var $col = $('<div class="col">');
+  var $col = $('<div class="col col-3 col-' + type + '">');
   var id = date_id + '_' + type;
   // '_ignore' prevents the field from being submitted and causing an error
   // TODO: Should id be the same as name?
@@ -177,8 +185,10 @@ function create_month(date_id) {{
   *   TODO: Should we use `name` instead of `id`? Will that mess up `aria-describedby`?
   * 
   * @param {{str}} date_id ID of the original date field
+  * 
+  * @returns undefined
   */
-  var $col = $('<div class="col">');
+  var $col = $('<div class="col col-month">');
   
   let id = date_id + '_month';
   // '_ignore' prevents the field from being submitted, avoiding an error
@@ -213,6 +223,8 @@ function add_months(select) {{
   /** Add month values to selection field.
   * 
   * @param {{HTML Node | $ obj}} select A <select> node.
+  * 
+  * @returns undefined
   */
   
   let $select = $(select);
@@ -245,6 +257,8 @@ function use_previous_values({{$date, $al_parent}}) {{
   * 
   * @param {{$ obj}} $date jQuery obj of the original date element.
   * @param {{$ obj}} $al_parent jQuery obj of the al parent of our split date parts.
+  * 
+  * @returns undefined
   */
   if ($date.val()) {{
     let full_date = new Date($date.val());
@@ -267,6 +281,8 @@ function add_error($al_parent) {{
   /** Add element that will contain all errors.
   * 
   * @param {{$ obj}} $al_parent The al parent of our split date parts.
+  * 
+  * @returns undefined
   */
   let $date = get_$date($al_parent);
   let $error = $('<div id="al_' + $date.attr('id') + '_error" class="da-has-error al_split_date_error"></div>');
@@ -282,6 +298,8 @@ function update_original_date({{$date, $al_parent}}) {{
   * 
   * @param {{$ obj}} $date The original date element.
   * @param {{$ obj}} $al_parent The al parent of our split date parts.
+  * 
+  * @returns undefined
   */
   var data = get_date_data($al_parent);
   var val = data.month + '/' + data.day + '/' + data.year;
@@ -302,6 +320,7 @@ function is_required(element) {{
   /*** Returns true if date value is required, otherwise returns false.
   * 
   * @param {{Node}} element AL split date element. Can be parent of date parts.
+  * 
   * @returns {{bool}}
   */
   let $date = get_$date(element);
@@ -316,6 +335,7 @@ function get_date_data(element) {{
   * return the full date data as an object.
   * 
   * @param {{HTML Node | $ obj}} element Any al split date element, including parent.
+  * 
   * @returns {{year: str, month: str, day: str}}
   */
   var year_elem = get_$parent(element).find('input.year')[0];
@@ -345,6 +365,7 @@ function get_$date(element) {{
   /** Returns jQuery obj of original date element.
   * 
   * @param {{HTML Node}} element Any al split date element, including al parent.
+  * 
   * @returns {{jQuery obj}}
   */
   return $($(element).closest('.dafieldpart').children('input')[0]);
@@ -356,6 +377,7 @@ function get_$parent(element) {{
   *   Easier to maintain all in one place.
   * 
   * @param {{HTML Node}} element Any element.
+  * 
   * @returns {{jQuery obj}} Note: can be an "empty" jQuery object.
   */
   // `.closest()` will get the element itself if appropriate
@@ -373,6 +395,8 @@ function set_up_validation($al_parent) {{
   /** Uses jQuery validation plugin to set up validation functionality
   * 
   * @param {{$ obj}} $al_parent jQuery obj of the al parent of our split date parts.
+  * 
+  * @returns undefined
   */
   set_up_errorPlacement();
   set_up_highlight();
@@ -380,14 +404,17 @@ function set_up_validation($al_parent) {{
   
   $al_parent.find('.al_split_date').each(function make_validator_options (index, field) {{
     add_rules(field);
+    add_messages(field);
     add_to_groups(field);
   }});
 }};  // Ends set_up_validation()
 
   
 function set_up_errorPlacement() {{
-  /** Sometimes override errorPlacement */
-  
+  /** Sometimes override existing errorPlacement.
+  * 
+  * @returns undefined
+  */
   let validator = $("#daform").data('validator');
   let original_error_placement = validator.settings.errorPlacement;
   validator.settings.errorPlacement = function al_errorPlacement(error, field) {{
@@ -407,7 +434,10 @@ function set_up_errorPlacement() {{
 }};  // Ends set_up_errorPlacement()
   
 function set_up_highlight() {{
-  /** For our date elements, override pre-existing highlight method. */
+  /** For our date elements, override pre-existing highlight method.
+  * 
+  * @returns undefined
+  */
   let validator = $("#daform").data('validator');
   let original_highlight = validator.settings.highlight;
   validator.settings.highlight = function al_highlight(field, errorClass, validClass) {{
@@ -429,7 +459,10 @@ function set_up_highlight() {{
 }};  // Ends set_up_highlight()
   
 function set_up_unhighlight() {{
-  /** For our date elements, override pre-existing highlight method. */
+  /** For our date elements, override pre-existing highlight method.
+  * 
+  * @returns undefined
+  */
   let validator = $("#daform").data('validator');
   let original_unhighlight = validator.settings.unhighlight;
   validator.settings.unhighlight = function al_unhighlight(field, errorClass, validClass) {{
@@ -445,6 +478,8 @@ function add_rules(field) {{
   /** Add all date rules to a given field.
   * 
   * @param {{HTML Node}} field An al split date field.
+  * 
+  * @returns undefined
   */
   let rules = {{
     // TODO: try returning value of 'day' to get a better error message.
@@ -470,6 +505,27 @@ function add_rules(field) {{
 }};  // Ends add_rules()
   
   
+function add_messages(field) {{
+  /** Adds custom messages that don't need parameters
+  * 
+  * @param {{HTML Node}} field An al split date field.
+  * 
+  * @returns undefined
+  */
+  let messages = $("#daform").data('validator').settings.messages;
+  let name = get_$date(field).attr('name');
+  let required_msg = undefined;
+  if (messages[name]) {{
+    required_msg = messages[get_$date(field).attr('name')].required;
+  }}
+  $(field).rules('add', {{
+    messages: {{
+      required: required_msg,
+    }}
+  }});  // Ends add rules
+}};  // Ends add_messages()
+  
+  
 function add_to_groups(field) {{
   /** Add field to its group dynamically after-the-fact. We have
   *   to do this because da has already created its groups and we
@@ -479,6 +535,8 @@ function add_to_groups(field) {{
   *   Inspired by https://stackoverflow.com/a/9688284/14144258
   * 
   * @param {{HTML Node}} field An al split date field.
+  * 
+  * @returns undefined
   */
   let validator = $("#daform").data('validator');
   validator.groups[ $(field).attr('name') ] = get_$date(field).attr('id');
@@ -643,6 +701,7 @@ function date_is_ready_for_min_max(element) {{
   *   date value invalidation.
   * 
   * @param {{HTML Node}} element Any al split date element, including the parent.
+  * 
   * @returns {{bool}}
   */
   var data = get_date_data(element);
@@ -666,7 +725,9 @@ function date_is_ready_for_min_max(element) {{
 
 // TODO: get rid of double negatives
 function which_inputs_dont_cross_bounds(element) {{
-  /** Given a date part element, returns a {{year, month, day}} object.
+  /** TODO: Change this to being just a date invalidation function.
+  * 
+  * Given a date part element, returns a {{year, month, day}} object.
   *   Each property is true if the input is valid and false if the input
   *   is invalid. If any inputs are empty, all properties will be true.
   *   Thus the dropdown input month will always be valid
@@ -750,6 +811,7 @@ function setDate({{year, month, date}}) {{
   * @param {{number}} year the year to set
   * @param {{number}} month the month to set (zero-indexed)
   * @param {{number}} date the date to set
+  * 
   * @returns {{Date}} the set date
   */
   const newDate = new Date(0);
@@ -809,6 +871,7 @@ class ALThreePartsDateTestValidation2(CustomDataType):
     jq_message = word("Answer with a valid date")
     is_object = True
     mako_parameters = [
+      'min', 'max',
       'alMin', 'alMinMessage', 'alMax', 'alMaxMessage',
       'alInvalidDayMessage', 'alInvalidYearMessage', 'alDefaultMessage'
     ]
@@ -854,6 +917,7 @@ class ALBirthDateTestValidation2(ALThreePartsDateTestValidation2):
     jq_message = word("Answer with a valid date of birth")
     is_object = True
     mako_parameters = [
+      'min', 'max',
       'alMin', 'alMinMessage', 'alMax', 'alMaxMessage',
       'alInvalidDayMessage', 'alInvalidYearMessage', 'alDefaultMessage'
     ]

@@ -38,8 +38,11 @@ fields:
   - Birthday and default messages: test_b_day
     datatype: ALBirthDateTestValidation2
     required: True
+    min: 5555/5/5
+    max: true
     validation messages:
-      required: Required!
+      required: B-day custom required message!
+      max: B-day custom max message!
     alMin: 1111-02-02
     #alMinMessage: "Custom too early b-day message"
     #alMax: 2020-02-06
