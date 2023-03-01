@@ -14,12 +14,11 @@
 }
 
 /* More room for month */
-.al_split_date_parent.al_invalid {
-  padding-left: calc(var(--bs-gutter-x) * .5);
+.al_split_date .col-year {
+  padding: 0;
 }
-.al_split_date_parent .col-day,
-.al_split_date_parent .col-year {
-  padding-left: 0;
+.al_split_date .col-month {
+  padding-right: 0;
 }
 
 /* Javascript somewhere is setting an inline style. We could try
