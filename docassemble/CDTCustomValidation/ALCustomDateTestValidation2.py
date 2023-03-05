@@ -12,21 +12,39 @@ import re
 
 js_text = """\
 // $('#daform').validate({{ errorClass: 'is-invalid' }});  // for codepen (no custom required message)
-//$('#daform').validate({{ errorClass: 'is-invalid', messages: {{curbs: {{ required: 'bar' }}}} }});  // for codepen
+//$('#daform').validate({{ errorClass: 'is-invalid', ignore: ':disabled', messages: {{curbs: {{ required: 'Custom required message' }}}} }});  // for codepen
 
 console.log('---- starting custom date 2');
 
 // This is an adaptation of Jonathan Pyle's datereplace.js
 
+// TODO: Hidden custom datatype elements are not disabled on first load. Disable
+//       them ourselves for now.
+// TODO: ???
+// TODO: Try tracking lifecycle for `required` to see where highlighting goes wrong.
+//       `.al_invalid_field` on children, then add or remove $al_date class based on any children that are invalidated?
+//       but then need to change how fields are invalidated to avoid having to click into each field when the
+//       change in one field validates all fields? How to avoid this? By controlling the required
+//       function. But then we have the problem with how to not override everyone else's required function.
+//       Extend $ withour own validator? Maybe handle required validation in the highlight and unhighlight
+//       methods... Why is error placement working fine for adding the class for everything else?
+// TODO: idea - validate hidden field with triggering 'change' event
+// Still have to keep some of our validation methods around, I think,
+// though altered, but maybe *then* required could take care of itself
+// and we'd avoid a double message on submit.
+// TODO: We can get the month/day/year values as mako_parameters too so they can be translated
 /*
 * Notes to keep around:
-* - Don't include a min date default for birthdays. Too hard to predict developer needs, like great-grandmother's birthday. Document that developers need to set a min value if they want one.
+* - Our custom highlighting doesn't work on submit. It might be because it's
+*   the original date validation going on.
+* - Avoid a min date default for birthdays. Too hard to predict developer
+*   needs, like great-grandmother's birthday. Document that developers need
+*   to set a min value if they want one.
 * - Rule names must avoid dashes.
 * - year input of "1" counts as a date of 2001 and "11" is 2011
-* - I didn't find anything like `defaultShowErrors` for other functions, here or in da
-* - left to right precedence
+* - I didn't find anything like `defaultShowErrors` for other plugin functions, here or in da
 *
-* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages):
+* Validation priority (https://design-system.service.gov.uk/components/date-input/#error-messages) post MVP:
 *  1. missing or incomplete information (when parent is no longer in focus, highlight fields missing info?)
 *  2. information that cannot be correct (for example, the number ‘13’ in the month field)
 *     (TODO: maybe less than 4 digits in year counts? Maybe it's #3 priority?)
@@ -36,33 +54,9 @@ console.log('---- starting custom date 2');
 */
 
 /*
-TODO: prioritize validation
-
-DONE:
-  - BUG: `required` da custom message doesn't show up, field isn't highlighted
-  - Put `aria-describedby` on field somewhere somehow
-  - Change var name "element" to "field" where possible
-  - Handle un-required partial dates on submission (was already done in our da customdatatype)
-  - Provide attrib for default message that will appear before
-      our defaults if no more specific message is given.
-  - [Answer: We do want to require a 4-digit year] Discuss requiring a 4-digit year
-  - MVP highlight full element and none of the individual elements (with exclamation)
-  - (Bug) When one field is invalid, manipulating other fields will
-      affect errors on the first field invalidations, hiding them
-      and unhighlighting that first field when the other field is
-      valid and other stuff. This includes manipulating other non-date
-      fields. `showErrors` doesn't allow detecting element when things
-      are valid, so how do manage that?
-      When the other field is invalid already, triggering its invalidation
-      message will hide the first field's message, but it won't remove
-      the highlighting.
-  - Bug:
-    click to year
-    Enter somethihng
-    set Day to 35
-    click out
-    fix day
-    all errors disappear
+TODO: Post MVP, prioritize validation, either UK gov or left to right.
+TODO: In da, submitting with a hidden required field prevents a user
+      from continuing.
 */
 
 // da doesn't log the full error sometimes, so we'll do our own try/catch
@@ -90,18 +84,19 @@ function replace_date(original_date) {{
   $original_date.attr('aria-hidden', 'true');
       
   // -- Construct the input components --
-      
   let date_id = $original_date.attr('id');
   let $year = create_date_part({{date_id, type: 'year'}});
   let $month = create_month(date_id);
   let $day = create_date_part({{date_id, type: 'day'}});
   
   var $al_date = $('<div class="al_split_date form-row row">');
-  $original_date.before($al_date);
-  
+      
+  // -- Add them to the DOM --
   $al_date.append($month.closest('.col'));
   $al_date.append($day.closest('.col'));
   $al_date.append($year.closest('.col'));
+  add_error_container($al_date);
+  $original_date.before($al_date);
   
   // Avoid .data() for our dynamic stuff - caching problems
   // https://forum.jquery.com/topic/jquery-data-caching-of-data-attributes
@@ -110,6 +105,12 @@ function replace_date(original_date) {{
     $year.attr('required', true);
     $month.attr('required', true);
     $day.attr('required', true);
+  }}
+  
+  if ($original_date[0].disabled) {{
+    $year.attr('disabled', true);
+    $month.attr('disabled', true);
+    $day.attr('disabled', true);
   }}
   
   use_previous_values({{$original_date, $al_date}});
@@ -124,8 +125,6 @@ function replace_date(original_date) {{
     update_original_date($al_date);
   }};
   
-  add_error_container($al_date);
-  
   return $al_date;
 }};  // Ends replace_date()
   
@@ -136,7 +135,7 @@ function replace_date(original_date) {{
 // A shame these have to be split into month and others
 function create_date_part({{type, date_id}}) {{
   /** Return one date part with a label and input inside a container.
-  *   TODO: Should we use `name` instead of `id`? Will that mess up `aria-describedby`?
+  *   TODO: Should we use original date's `name` instead of `id`? In da they're the same so far.
   * 
   * @param {{str}} type 'year' or 'day'
   * @param {{str}} date_id ID of the original date field
@@ -146,19 +145,23 @@ function create_date_part({{type, date_id}}) {{
   var $col = $('<div class="col col-3 col-' + type + '">');
   var id = date_id + '_' + type;
   // '_ignore' prevents the field from being submitted, avoiding a da error
-  // TODO: Should id be the same as name? Would that mess up `aria-describedby`?
   let name =  '_ignore_' + id;
   
-  var $label = $('<label>{{' + type + '}}</label>');
-  $label.attr( 'for', name );
+  // For python formatting, need to have {{day}} and {{year}}
+  let $label = '';
+  if (type === 'day') {{
+    $label = $('<label for="' + name + '">{{day}}</label>');
+  }} else {{
+    $label = $('<label for="' + name + '">{{year}}</label>');
+  }}
   $col.append($label);
   
-  // `inputmode` ("numeric") not fully supported yet (02/09/2023). When it is,
-  // change to `type='text'`. Also, when remove `type='number'` also add a check
-  // when in invalid day check to see if either the year or day is not a number.
-  // See warning in that function.
-  // Reconsider type `number`, but avoid attr `pattern` - 
-  // voice control will enter invalid input (https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437)
+  // Reconsider type `number`, `inputmode` ("numeric") not fully supported yet
+  // (02/09/2023). When it is, change to `type='text'`. Also, when we _do_ remove
+  // `type='number'` also add a check in invalid day check to see if either the
+  // year or day is not a number. See warning in that function.
+  // Avoid attr `pattern` - voice control will enter invalid input:
+  // https://github.com/alphagov/govuk-design-system-backlog/issues/42#issuecomment-775103437
   
   // aria-describedby is ok to have, even when the date-part error is
   // not present or is display: none
@@ -169,7 +172,7 @@ function create_date_part({{type, date_id}}) {{
   // I think jquery validation plugin uses the error message's `for` attrib,
   // but I'm not sure where that originally comes from. Looks like the original
   // input's `id`, but I'm not sure why the plugin is using that.
-  $field.attr('aria-describedby', id + '-error');
+  $field.attr('aria-describedby', date_id + '-error');
   $col.append($field);
   
   return $field;
@@ -188,25 +191,27 @@ function create_month(date_id) {{
   
   let id = date_id + '_month';
   // '_ignore' prevents the field from being submitted, avoiding a da error
-  // TODO: Should id be the same as name? Would that mess up `aria-describedby`?
   let name =  '_ignore_' + id;
   
-  let $label = $('<label>{{month}}</label>');
-  $label.attr( 'for', name );
+  let $label = $('<label for="' + name + '">{{month}}</label>');
   $col.append($label);
   
   // TODO: Add aria-describedby if necessary (check da)
   // aria-describedby is ok to have, even when the date-part error is
   // not present or is display: none
-  // `for` is label of field
-  // `aria-describedby` is supplemental info
+  // `for` is label of field while `aria-describedby` is supplemental info
   // https://developer.mozilla.org/en-US/docs/Web/CSS/display#display_none
   // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Attributes/aria-hidden
+  
+  // There's only one message element, so all fields are described by it
+  // I think jquery validation plugin uses the error message's `for` attrib,
+  // but I'm not sure where that originally comes from. Looks like the original
+  // input's `id`, but I'm not sure why the plugin is using that.
   var $field = $('<select class="form-select al_field month ' + date_id + '">');  // unique
   $field.attr('id', id);
   $field.attr('name', name);
   // There's only one message element, so all fields are described by it
-  $field.attr('aria-describedby', id + '-error');
+  $field.attr('aria-describedby', date_id + '-error');
   add_months($field);  // unique
   
   $col.append($field);
@@ -298,12 +303,26 @@ function update_original_date($al_date) {{
   * @returns undefined
   */
   var data = get_date_data($al_date);
+  // TODO: International: Change this to iso date yyyy/mm/dd. Then
+  // convert it to date (which will use locale settings?) and then set it to val
+  
+  // // TODO: Try below for iso date and see if da can show it
+  // // correctly later when it displays it. [answer: seemed to break]
+  // let val = data.year + '-' + data.month + '-' + data.day;
+  // if ( val === '--' ) {{
+  //   val = '';
+  // }}
+  
   var val = data.month + '/' + data.day + '/' + data.year;
   if ( val === '//' ) {{
     val = '';
   }}
+  
   get_$original_date($al_date).val( val );
-}};  // Ends updateDate()
+  // Triggering 'input' doesn't trigger validation messages
+  // despite ignoring only :disabled fields
+  // get_$original_date($al_date).trigger('input');
+}};  // Ends update_original_date()
   
   
 // ==================================================
@@ -320,7 +339,7 @@ function is_required(element) {{
   * @returns {{bool}}
   */
   let $original_date = get_$original_date(element);
-  return $original_date.closest('.da-form-group').hasClass('darequired');
+  return $original_date.closest('.da-form-group').hasClass('darequired');;
 }}  // Ends is_required()
   
   
@@ -437,7 +456,7 @@ function set_up_highlight(validator) {{
   */
   let original_highlight = validator.settings.highlight;
   validator.settings.highlight = function al_highlight(field, errorClass, validClass) {{
-    /** Highlight parent instead of individual fields. MVP  */
+    /** Highlight parent instead of individual fields. MVP */
     let $al_date = get_$al_date(field);
     // If this isn't an AL date, use the original behavior
     if (!$al_date[0] && original_highlight !== undefined) {{
@@ -449,6 +468,8 @@ function set_up_highlight(validator) {{
     // Avoid highlighting individual elements
     $al_date.find('.al_field').each(function(index, field) {{
       $(field).removeClass('is-invalid');  // Just a Bootstrap class
+      // TODO: try just the below alone
+      $(field).removeClass(errorClass);  // Just a Bootstrap class
     }});
     
   }};  // Ends al_highlight()
@@ -461,7 +482,8 @@ function set_up_unhighlight(validator) {{
   */
   let original_unhighlight = validator.settings.unhighlight;
   validator.settings.unhighlight = function al_unhighlight(field, errorClass, validClass) {{
-    /** Unhighlight parent instead of individual fields. MVP  */
+    /** Unhighlight parent instead of individual fields. MVP */
+    // During invalid required day, this is triggered for month and unhighlights all. Why?
     let $al_date = get_$al_date(field);
     $al_date.removeClass('al_invalid');
     original_unhighlight(field, errorClass, validClass);
@@ -480,6 +502,8 @@ function add_rules(field) {{
     // TODO: try returning value of 'day' to get a better error message.
     _alInvalidDay: true,  // e.g. 1/54/2000 is invalid` TODO: Should devs be able to disable this?
     _alInvalidYear: true,
+    // Just normal required rule doesn't behave right to deal with other fields being empty
+    _alRequired: is_required(field),
     alMin: get_$original_date(field).attr('data-alMin') || false,
     // TODO: try:
     // alMax: is_birthdate(field) || get_$original_date(field).attr('data-alMax'),
@@ -501,7 +525,8 @@ function add_rules(field) {{
   
   
 function add_messages(field) {{
-  /** Adds custom messages that don't need parameters
+  /** Adds custom messages that are in the validator object
+  *   and don't need parameters.
   * 
   * @param {{HTML Node}} field An al split date field.
   * 
@@ -509,15 +534,18 @@ function add_messages(field) {{
   */
   let messages = $("#daform").data('validator').settings.messages;
   let name = get_$original_date(field).attr('name');
-  // If the original date field has custom messages
-  if (messages[name] !== undefined) {{
-    // Add the `required` custom message. `undefined` is fine.
+  
+  // If there's are custom messages in the validator object, use them
+  if (messages[name]) {{
     $(field).rules('add', {{
       messages: {{
         required: messages[get_$original_date(field).attr('name')].required,
+        // Just required doesn't behave right to deal with other fields being empty
+        _alRequired: messages[get_$original_date(field).attr('name')].required,
       }}
     }});  // ends add rules
   }}  // ends if required message exists
+  
 }};  // Ends add_messages()
   
   
@@ -583,13 +611,13 @@ $.validator.addMethod('alMax', function(value, field, params) {{
   // Just get date data from the actual fields
   var data = get_date_data(field);
 
-  // TODO: Catch invalid alMax attr values? Log in console?
+  // TODO: Catch invalid alMax attr values for devs? Log in console? Make post MVP issue
   var max_attr = get_$original_date(field).attr('data-alMax');
   var date_max = new Date(max_attr);
   if ( isNaN(date_max) && is_birthdate(field)) {{
     date_max = new Date(Date.now());
   }}
-
+  
   var date_val = new Date(data.year + '-' + data.month + '-' + data.day);
   
   return date_val <= date_max;
@@ -612,21 +640,21 @@ $.validator.addMethod('alMax', function(value, field, params) {{
   
   
 // --- Validate individual fields ---
-// Always validate each individual field any time any fields are changed.
+// Always check each others' field any time any field is validated. That
+// way one valid field can't take away the message/highlighting for another
+// invalid field.
   
 $.validator.addMethod('_alInvalidDay', function(value, field, params) {{
   /** Returns false if full input values cannot be converted to a
-  *   matching Date object. E.g. 12/32/2000 will be converted to 1/1/2001.
-  *   HTML doesn't do this check itself.
-  *   Right now only day inputs can create mismatching dates.
-  *   
-  *   Note: We need to validate each field for this. If they put Jan 30 and
-  *   then change month to Feb, we need to show the error then.
+  *   matching Date object. E.g. HTML won't recognize 12/32/2000 as an
+  *   invalid date. It will instead convert it to 1/1/2001.
+  *   Only day inputs can create mismatching dates, but this must be
+  *   checked whenever any field is updated. If the user puts Jan 30 and
+  *   then change month to Feb, we need to show the error then. If the
+  *   user puts 2/29/2020 and changes to 2021, that must be shown too.
   */
-  // Only validate day for this, but still validate it any time any of
-  // the split date parts are checked.
   // Doesn't need to be abstracted anymore in some ways, but it does
-  // make this `addMethod` section of the code cleaner.
+  // make this addMethod section of the code cleaner.
   return has_valid_day(field);
 }}, function alInvalidDayMessage (validity, field) {{
   /** Returns the string of the invalidation message. */
@@ -642,7 +670,7 @@ $.validator.addMethod('_alInvalidDay', function(value, field, params) {{
   
   // If the date is only partly filled, we can't give a useful message
   // without a heck of  a lot of work, so give a generalized invalid day
-  // default message. Other is a stretch goal.
+  // default message.
   let data = get_date_data(field);
   if (data.year == '' || data.month == '') {{
     return `No month has ${{input_date}} days.`;
@@ -658,9 +686,10 @@ $.validator.addMethod('_alInvalidDay', function(value, field, params) {{
   
 
 $.validator.addMethod('_alInvalidYear', function(value, field, params) {{
-  /** Returns true if year is empty or has 4 digits. */
-  
-  // Check year to make sure it's 4 digits
+  /** Returns true if year is empty or has 4 digits.
+  * 
+  * @returns {{bool}}
+  */
   let text = get_$al_date(field).find('input.year')[0].value;
   // Empty year is not invalid in this way
   if (text.length === 0) {{return true;}}
@@ -679,6 +708,40 @@ $.validator.addMethod('_alInvalidYear', function(value, field, params) {{
     || `The year needs to be 4 digits long and cannot start with "0".`
   );
 }});  // ends validate '_alInvalidYear'
+  
+
+$.validator.addMethod('_alRequired', function(value, field, params) {{
+  /** Returns true if
+  *   - original field is hidden/disabled
+  *   - all fields have contents
+  *   - current field has contents and other fields haven't been interacted with yet
+  *   Otherwise returns false.
+  * 
+  * @returns {{bool}}
+  */
+  // Remember that this field has been interacted with for validation.
+  $(field).addClass('al_dirty');
+  
+  // For clarity, if the field itself has just been made empty, easy choice
+  if ($(field).val() === '') {{
+    return false;
+  }}
+  
+  let all_dirty_fields_have_contents = true;
+  // For all related split date fields
+  get_$al_date(field).find('.al_field').each(function (index, a_field) {{
+    // If a field has been interacted with by this rule at least once
+    if ( $(a_field).hasClass('al_dirty') ) {{
+      // and it's now empty
+      if ($(a_field).val() === '') {{
+        // all fields should be invalid
+        all_dirty_fields_have_contents = false;
+      }}
+    }}
+  }});
+  
+  return all_dirty_fields_have_contents;
+}});  // ends validate 'required'
   
   
 // ==================================================
@@ -717,11 +780,11 @@ function date_is_ready_for_min_max(element) {{
 function has_valid_day(element) {{
   /** Given a date part element, returns true if:
   *   - the day is <= 31 and year or month is empty
-  *   - all fields are filled and the day date is <= max days in the given month
+  *   - all fields are filled and the day date is <= max days in the given month in the given year
   *   Returns false if either:
   *   - The day date is > 31 or
-  *   - The day date is > the' max days in the given month
-  * 
+  *   - The day date is > the max days in the given month of the given year
+  *
   * Inspired by https://github.com/uswds/uswds/blob/728ba785f0c186e231a81865b0d347f38e091f96/packages/usa-date-picker/src/index.js#L735
   * 
   * @param element {{HTML Node}} Any element in the al split date picker
@@ -730,15 +793,18 @@ function has_valid_day(element) {{
   * 
   * @examples:
   * 10//2000  // true
+  * /10/2000  // true
   * 10/10/2000  // true
-  * 12/42/2000  // false
+  * /42/2000  // false
+  * 2/29/2021  // false
   */
   var data = get_date_data(element);
+
   if (parseInt(data.day) > 31) {{
     return false;
   }}
   // Don't invalidate if the date is only partly filled. Empty input fields
-  // get handled other places.
+  // should get handled other places.
   if (data.year === '' || data.month === '' || data.day === '') {{
     return true;
   }}
@@ -753,8 +819,8 @@ function has_valid_day(element) {{
   
   // WARNING: If we change the `type` of the year or day
   // to be 'text', we need to check return false if any
-  // dateStringParts part === null
-
+  // dateStringParts part === null. See inspiration link
+  
   const checkDate = setDate({{
     year: year,
     month: month - 1,
@@ -773,7 +839,6 @@ function has_valid_day(element) {{
   return true;
 }};  // Ends has_valid_day()
 
-  
 function setDate({{year, month, date}}) {{
   /**
   * Set date from month day year

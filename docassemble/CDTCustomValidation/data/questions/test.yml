@@ -14,43 +14,113 @@ features:
 mandatory: True
 question: A custom data type
 fields:
-  - number: number
-    #choices:
-    #  - High School
-    #  - College
-    #  - Graduate School
-    datatype: number
-    max: 2
-    validation messages:
-      max: Custom message.
-  - Custom messages: test_3_part
+  - note: |
+      Min is 1111-05-05, Max is 2222-02-05, REQUIRED, all custom messages
+  - Non-birthday date: test_3_part
     datatype: ALThreePartsDateTestValidation2
-    required: False
+    required: True
+    # Works as `data-max`
+    max: true
+    validation messages:
+      required: 3-part-day custom required message!
+      # Doesn't show up in validator.settings.messages, so can't use
+      max: Non-bday custom max message!
     alMin: 1111-05-05
     # Custom messages are the only way to add translation right now
     #alMinMessage: Custom too early 3-part message.
-    alDefaultMessage: Custom default 3-part message.
+    alDefaultMessage: Custom DEFAULT 3-part message.
     alMax: 2222-02-05
     alMaxMessage: Custom too late 3-part message.
     alInvalidDayMessage: Custom funky day 3-part message.
     alInvalidYearMessage: Custom must be 4 digits! 3-part message.
-    default: 1/1/2000
-  - Birthday and default messages: test_b_day
+  - note: |
+      Min is 1111-05-05, NOT required, default messages, default starting value
+  - Birthday: test_b_day
     datatype: ALBirthDateTestValidation2
-    required: True
-    min: 5555/5/5
-    max: true
+    required: False
+    alMin: 1111-05-05
+    default: 1/1/2000
+  - Show hidden required date: show_hidden
+    datatype: yesno
+  - Required hidden AL date: hidden_date
+    # Should allow continuing
+    show if: show_hidden
+    datatype: ALThreePartsDateTestValidation2
+  - note: Still shows its own custom invalid message when < 2
+  - number: number
+    required: False
+    datatype: number
+    max: 2
     validation messages:
-      required: B-day custom required message!
-      max: B-day custom max message!
-    alMin: 1111-02-02
-    #alMinMessage: "Custom too early b-day message"
-    #alMax: 2020-02-06
-    #alMaxMessage: "Custom too late b-day message"
+      max: Custom message.
+      min: This is missing from validator.settings.messages
+under: |
+  <div>
+    <h3>MVP validation rules</h3>
+    <i>The below is not accessibility friendly. Also, can't check submitting.</i>
+
+    <ul>
+      <li> <input type="checkbox"> General:<ul>
+          <li> <input type="checkbox"> When a field is invalid, the whole split date will have one error message and will have a red outline and exclamation mark on the right.</li>
+          <li> <input type="checkbox"> When all fields are valid, the appearance will be normal</li>
+          <li> <input type="checkbox"> Invalid feedback persists for invalid day, invalid year, and invalid required:<ol>
+              <li> <input type="checkbox"> One field is made invalid and invalid feedback appears</li>
+              <li> <input type="checkbox"> A second field is interacted with and is valid at the end of the interaction</li>
+              <li> <input type="checkbox"> Invalid feedback remains for the still invalid first field</li>
+            </ol>
+          </li>
+        </ul>
+      </li>
+      <li> <input type="checkbox"> Invalid min: date &lt; min</li>
+      <li> <input type="checkbox"> Invalid max: date &gt; max</li>
+      <li> <input type="checkbox"> Valid day:
+        <ul>
+          <li> <input type="checkbox"> Day &lt;= 31 and year or month or both are empty</li>
+          <li> <input type="checkbox"> All fields are filled and the day date is &lt;= max days in the given month in the given year
+            <ul>
+              <li> <input type="checkbox"> 2/29/2020</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li> <input type="checkbox"> Invalid day:
+        <ul>
+          <li> <input type="checkbox"> Day date &gt; 31 is invalid no matter what</li>
+          <li> <input type="checkbox"> Day date &gt; the max days in the given month of the given year
+            <ul>
+              <li> <input type="checkbox"> 2/29/2021</li>
+            </ul>
+          </li>
+          <li> <input type="checkbox"> Check: Date is valid until the month is changed (1/30/2020 -&gt; 2/30/2020)</li>
+          <li> <input type="checkbox"> Check: Date is valid until the year is changed (2/29/2020 -&gt; 2/29/2021)</li>
+        </ul>
+      </li>
+      <li> <input type="checkbox"> Invalid year:
+        <ul>
+          <li> <input type="checkbox"> 3 or fewer digits in the year</li>
+          <li> <input type="checkbox"> Year has leading 0</li>
+        </ul>
+      </li>
+      <li> <input type="checkbox"> Invalid required:
+        <ol>
+          <li>A required date field year or day is interacted with to type a value.</li>
+          <li>It is then blurred.</li>
+          <li>It is then made empty.</li>
+          <li>Invalid feedback should appear.</li>
+          <li>Note: The month dropdown doesn&#39;t seem to care for some reason (lookin&#39; at you, jquery validation plugin).</li>
+        </ol>
+      </li>
+      <li> <input type="checkbox"> Field separation: The validation for one set of fields has no effect on the validation feedback for another set of fields.</li>
+    </ul>
+    Note: if a required field with default value has its default value erased, it stays valid :P jQuery validation plugin doesn't seem to deal with that right now.
+  </div>
 ---
 mandatory: True
 question: That's it
 subquestion: |
   * ${ test_3_part }
   * ${ test_b_day }
+  % if defined('hidden_date'):
+  * ${ hidden_date }
+  % endif
 ---
