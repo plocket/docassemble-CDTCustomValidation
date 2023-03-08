@@ -1,63 +1,61 @@
 ---
-mandatory: True
-code: |
-  "blah"
----
 features:
   css:
     - al_dates.css
-# javascript:
-#   - the_file.js
 ---
-# Maybe just add a js script that you import into the interview
-# to do the validation
 mandatory: True
 question: A custom data type
 fields:
+  #- Birthday: test_b_orig_day
+  #  datatype: OriginalBirthDate
+  #  required: False
+  #  #default: 1/1/2000
   - note: |
       Min is 1111-05-05, Max is 2222-02-05, REQUIRED, all custom messages
   - Non-birthday date: test_3_part
     datatype: ALThreePartsDateTestValidation2
     required: True
     # Works as `data-max`
-    max: true
+    #max: true
     validation messages:
       required: 3-part-day custom required message!
       # Doesn't show up in validator.settings.messages, so can't use
-      max: Non-bday custom max message!
+      #max: Non-bday custom max message!
     alMin: 1111-05-05
     # Custom messages are the only way to add translation right now
     #alMinMessage: Custom too early 3-part message.
     alDefaultMessage: Custom DEFAULT 3-part message.
-    alMax: 2222-02-05
+    alMax: 2222-02-05  # v2: validate attribs
     alMaxMessage: Custom too late 3-part message.
     alInvalidDayMessage: Custom funky day 3-part message.
     alInvalidYearMessage: Custom must be 4 digits! 3-part message.
+    #~alDebug~
+    #alMonthLabel # (v2)
   - note: |
       Min is 1111-05-05, NOT required, default messages, default starting value
   - Birthday: test_b_day
     datatype: ALBirthDateTestValidation2
     required: False
     alMin: 1111-05-05
-    default: 1/1/2000
+    #default: 1/1/2000
   - Show hidden required date: show_hidden
     datatype: yesno
   - Required hidden AL date: hidden_date
     # Should allow continuing
     show if: show_hidden
     datatype: ALThreePartsDateTestValidation2
-  - note: Still shows its own custom invalid message when < 2
+  - note: Normal field still shows its own custom invalid message when input is above maximum at > 2
   - number: number
     required: False
     datatype: number
     max: 2
     validation messages:
       max: Custom message.
-      min: This is missing from validator.settings.messages
+      min: This is missing from validator.settings.messages, which makes sense, but is unfortunate
 under: |
   <div>
     <h3>MVP validation rules</h3>
-    <i>The below is not accessibility friendly. Also, can't check submitting.</i>
+    <i>The below is not part of the test and not accessibility friendly.</i>
 
     <ul>
       <li> <input type="checkbox"> General:<ul>
@@ -111,6 +109,7 @@ under: |
         </ol>
       </li>
       <li> <input type="checkbox"> Field separation: The validation for one set of fields has no effect on the validation feedback for another set of fields.</li>
+      <li> <input type="checkbox"> Avoid showing a hidden field. You should still be able to continue to the next page.</li>
     </ul>
     Note: if a required field with default value has its default value erased, it stays valid :P jQuery validation plugin doesn't seem to deal with that right now.
   </div>
@@ -123,4 +122,5 @@ subquestion: |
   % if defined('hidden_date'):
   * ${ hidden_date }
   % endif
+#  * Original: ${ test_b_orig_day }
 ---
